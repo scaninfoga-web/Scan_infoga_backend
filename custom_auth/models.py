@@ -24,8 +24,8 @@ class CustomUser(AbstractUser):
         ('CORPORATE', 'Corporate'),
         ('DEVELOPER', 'Developer'),
         ('USER', 'User')
-    ], default='USER')  # Added default value
-    date_joined = models.DateTimeField(auto_now_add=True, null=True)  # Modified field
+    ], default='USER')
+    date_joined = models.DateTimeField(auto_now_add=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -69,7 +69,7 @@ class UserSession(models.Model):
     lastLogin = models.DateTimeField(auto_now=True)
     sessionStartTime = models.DateTimeField(auto_now_add=True)
     sessionEndTime = models.DateTimeField(null=True, blank=True)
-    ipAddress = models.GenericIPAddressField(null=True, blank=True)  # Changed to allow null
+    ipAddress = models.GenericIPAddressField(null=True, blank=True) 
     device = models.CharField(max_length=200, default='Unknown')
     browser = models.CharField(max_length=200, default='Unknown')
     location = models.CharField(max_length=200, default='Unknown')

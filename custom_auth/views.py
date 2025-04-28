@@ -6,13 +6,13 @@ from .serializers import UserRegistrationSerializer, CorporateRegistrationSerial
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 import hashlib
-from .models import UserSession, CustomUser  # Also add CustomUser import
+from .models import UserSession, CustomUser
 from user_agents import parse
 from django.utils import timezone
 from core.utils import create_response
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from django.conf import settings  # Add this import
+from django.conf import settings
 
 @api_view(['POST'])
 def registerUser(request):
@@ -92,7 +92,6 @@ def loginUser(request):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-    # For corporate users, check approval status
     if user.user_type == 'CORPORATE':
         corporate_profile = user.corporate_profile
         if corporate_profile.approval_status != 'APPROVED':
@@ -119,7 +118,6 @@ def loginUser(request):
         sessionStartTime=timezone.now()
     )
     
-    # Customize response based on user type
     user_data = {
         'email': user.email,
         'firstName': user.first_name,
@@ -350,7 +348,7 @@ def registerCorporate(request):
         ),
         status=status.HTTP_400_BAD_REQUEST
     )
-    # Add this check in your registration views
+
     if CustomUser.objects.filter(email=email).exists():
         return Response(
             create_response(
