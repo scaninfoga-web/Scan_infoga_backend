@@ -44,7 +44,8 @@ EXTERNAL_APPS = [
     'corsheaders',
     'core',
     'custom_auth',
-     'hudsonrock'
+    'hudsonrock',
+    'user_activities',
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS
