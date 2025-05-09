@@ -47,14 +47,10 @@ EXTERNAL_APPS = [
     'corsheaders',
     'core',
     'custom_auth',
-<<<<<<< HEAD
     'hudsonrock',
     'user_activities',
-=======
-     'hudsonrock',
-     'ghunt_util_app',
-     'drf_yasg',
->>>>>>> 74d8c19 (mfa)
+    'ghunt_util_app',
+    'drf_yasg',
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS

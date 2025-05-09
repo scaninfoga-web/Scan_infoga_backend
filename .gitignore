@@ -48,3 +48,7 @@ media/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# testing qr
+test_qr.py
+test_qr_code.png
