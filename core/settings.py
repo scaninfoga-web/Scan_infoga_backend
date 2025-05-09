@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
+import os
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,8 +47,14 @@ EXTERNAL_APPS = [
     'corsheaders',
     'core',
     'custom_auth',
+<<<<<<< HEAD
     'hudsonrock',
     'user_activities',
+=======
+     'hudsonrock',
+     'ghunt_util_app',
+     'drf_yasg',
+>>>>>>> 74d8c19 (mfa)
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS
@@ -68,8 +77,8 @@ EXTERNAL_MIDDLEWARE = [
 
 MIDDLEWARE += EXTERNAL_MIDDLEWARE
 
-GOOGLE_OAUTH_CLIENT_ID = '466766560045-u35sn7p7f93t051ciqtn7mlf9r5aidtr.apps.googleusercontent.com'
-GOOGLE_OAUTH_CLIENT_SECRET = 'your-client-secret-from-google-cloud-console'
+GOOGLE_OAUTH_CLIENT_ID = '134305326215-3j5aoiss1vuatrs8iu1s7s3a835is5f8.apps.googleusercontent.com'
+GOOGLE_OAUTH_CLIENT_SECRET = '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'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -88,7 +97,7 @@ CORS_ALLOW_ALL_ORIGINS = True  # Set to True only in development
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=10),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'USER_ID_FIELD': 'email',  # Use email instead of id
     'USER_ID_CLAIM': 'email',  # Use email in the token claims
@@ -176,3 +185,18 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# SWAGGER_SETTINGS = {
+#     'SECURITY_DEFINITIONS': {
+#         'Bearer': {
+#             'type': 'apiKey',
+#             'name': 'Authorization',
+#             'in': 'header'
+#         }
+#     },
+#     'USE_SESSION_AUTH': False
+# }
+
+# Add ghunt_dev to Python path
+GHUNT_DEV_PATH = os.path.join(BASE_DIR, 'ghunt_dev')
+GHUNT_CREDS_PATH = os.path.join(os.path.join(BASE_DIR, 'secrets', 'ghunt_creds.m'))
+sys.path.append(GHUNT_DEV_PATH)
