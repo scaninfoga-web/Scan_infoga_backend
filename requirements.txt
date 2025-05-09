@@ -71,3 +71,4 @@ urllib3==2.4.0
 user-agents==2.2.0
 wcwidth==0.2.13
 python-dotenv==1.1.0
+setuptools==80.3.1
