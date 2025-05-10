@@ -401,7 +401,7 @@ def registerUser(request):
         create_response(
             status=False,
             message="Registration failed",
-            data=serializer.errors
+            data=serializer.errors  #"user exists" if "email" in serializer.errors.keys else serializer.errors
         ),
         status=status.HTTP_400_BAD_REQUEST
     )
@@ -556,33 +556,17 @@ def loginUser(request):
             'approvalStatus': user.corporate_profile.approval_status
         })
     
-    response = Response(
+    return Response(
         create_response(
             status=True,
             message="Login successful",
-            data={'user': user_data}
-        )
+            data={
+                'user': user_data,
+                'accessToken': str(refresh.access_token)
+            }
+        ),
+        status=status.HTTP_200_OK
     )
-    
-    response.set_cookie(
-        'accessToken',
-        str(refresh.access_token),
-        httponly=True,
-        secure=True,
-        samesite='Strict',
-        max_age=3600
-    )
-    
-    response.set_cookie(
-        'refreshToken',
-        str(refresh),
-        httponly=True,
-        secure=True,
-        samesite='Strict',
-        max_age=86400
-    )
-    
-    return response
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -670,7 +654,7 @@ def googleAuth(request):
             sessionStartTime=timezone.now()
         )
 
-        response = Response(
+        return Response(
             create_response(
                 status=True,
                 message="Google authentication successful",
@@ -680,33 +664,13 @@ def googleAuth(request):
                         'firstName': user.first_name,
                         'lastName': user.last_name,
                         'isNewUser': created
-                    }
+                    },
+                    'accessToken': str(refresh.access_token)
                 }
-            )
+            ),
+            status=status.HTTP_200_OK
         )
 
-        # Set JWT tokens in cookies with modified settings
-        response.set_cookie(
-            'accessToken',
-            str(refresh.access_token),
-            httponly=False,  # Changed to false temporarily for debugging
-            secure=False,    # Changed to false for development
-            samesite='Lax',  # Changed to Lax for development
-            max_age=3600,
-            domain='localhost'  # Added domain
-        )
-        
-        response.set_cookie(
-            'refreshToken',
-            str(refresh),
-            httponly=False,  # Changed to false temporarily for debugging
-            secure=False,    # Changed to false for development
-            samesite='Lax',  # Changed to Lax for development
-            max_age=86400,
-            domain='localhost'  # Added domain
-        )
-
-        return response
 
     except ValueError as e:
         return Response(
