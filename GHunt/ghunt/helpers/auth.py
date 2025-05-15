@@ -2,7 +2,6 @@ import asyncio
 import json
 import base64
 from typing import *
-import os 
 
 import httpx
 from bs4 import BeautifulSoup as bs
@@ -14,11 +13,7 @@ from ghunt.helpers.utils import *
 from ghunt.helpers import listener
 from ghunt.helpers.knowledge import get_domain_of_service, get_package_sig
 from ghunt.knowledge.services import services_baseurls
-
-from django.conf import settings
-
-from pathlib import Path
-# from ghunt.helpers.auth import *
+from ghunt.helpers.auth import *
 
 
 async def android_master_auth(as_client: httpx.AsyncClient, oauth_token: str) -> Tuple[str, List[str], str, str]:
@@ -206,14 +201,12 @@ def auth_dialog() -> Tuple[Dict[str, str], str] :
 
 async def load_and_auth(as_client: httpx.AsyncClient, help=True) -> GHuntCreds:
     """Returns an authenticated GHuntCreds object."""
-    # Use the current working directory or environment variable for the creds file
-    creds_path = Path(settings.GHUNT_CREDS_PATH)
-    creds = GHuntCreds(creds_path)
+    creds = GHuntCreds()
     try:
         creds.load_creds()
     except GHuntInvalidSession as e:
         if help:
-            raise GHuntInvalidSession(f"Please generate a new session by doing => ghunt login", str(e)) from e
+            raise GHuntInvalidSession(f"Please generate a new session by doing => ghunt login") from e
         else:
             raise e
 

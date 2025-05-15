@@ -22,6 +22,8 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+GHUNT_CREDS_PATH = os.path.join(BASE_DIR, 'secrets', 'creds.m')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -31,9 +33,7 @@ SECRET_KEY = 'django-insecure-yyr!ycnt3t8(cgrz3vydwxv%^e9=p-nd8d1oypmk75q2^whoty
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-# ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['16.171.113.56', 'localhost', '127.0.0.1']
+# ALLOWED_HOSTS = ['16.171.113.56', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -54,7 +54,6 @@ EXTERNAL_APPS = [
     'custom_auth',
     'hudsonrock',
     'user_activities',
-    'ghunt_util_app',
     'drf_yasg',
 ]
 
@@ -78,21 +77,12 @@ EXTERNAL_MIDDLEWARE = [
 
 MIDDLEWARE += EXTERNAL_MIDDLEWARE
 
-GOOGLE_OAUTH_CLIENT_ID = '134305326215-3j5aoiss1vuatrs8iu1s7s3a835is5f8.apps.googleusercontent.com'
-GOOGLE_OAUTH_CLIENT_SECRET = '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'
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
+GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
 
 CORS_ALLOW_CREDENTIALS = True
-
-# CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # Set to True only in development
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # Add your frontend URL here
-#     "http://127.0.0.1:3000",
-# ]
+ALLOWED_HOSTS = ['172.31.27.231', '*']
 
 # JWT settings
 from datetime import timedelta
@@ -132,19 +122,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -155,10 +132,6 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT'),
     }
 }
-
-
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -175,10 +148,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -187,32 +156,11 @@ USE_I18N = True
 
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
-
 STATIC_URL = 'static/'
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Add this line
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# SWAGGER_SETTINGS = {
-#     'SECURITY_DEFINITIONS': {
-#         'Bearer': {
-#             'type': 'apiKey',
-#             'name': 'Authorization',
-#             'in': 'header'
-#         }
-#     },
-#     'USE_SESSION_AUTH': False
-# }
 
-# Add ghunt_dev to Python path
-GHUNT_DEV_PATH = os.path.join(BASE_DIR, 'ghunt_dev')
-GHUNT_CREDS_PATH = os.path.join(os.path.join(BASE_DIR, 'secrets', 'ghunt_creds.m'))
-sys.path.append(GHUNT_DEV_PATH)

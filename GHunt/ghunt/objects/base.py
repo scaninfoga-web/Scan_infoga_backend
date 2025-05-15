@@ -4,15 +4,12 @@ import json
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 import base64
+from core import settings
 
 from autoslot import Slots
 import httpx
 
 from ghunt.errors import GHuntInvalidSession
-
-import traceback
-
-from pathlib import Path
 
 
 # class SmartObj(Slots): # Not Python 3.13 compatible so FUCK it fr fr
@@ -33,65 +30,32 @@ class GHuntCreds(SmartObj):
     """
     
     def __init__(self, creds_path: str = "") -> None:
-        print("CREDS PATHSSSS: ", creds_path)
         self.cookies: Dict[str, str] = {}
         self.osids: Dict[str, str] = {}
         self.android: AndroidCreds = AndroidCreds()
-
-        if not creds_path:
-            cwd_path = Path().home()
-            ghunt_folder = cwd_path / ".malfrats/ghunt"
-            if not ghunt_folder.is_dir():
-                ghunt_folder.mkdir(parents=True, exist_ok=True)
-            creds_path = Path(settings.GHUNT_CREDS_PATH)
-        self.creds_path: str = creds_path
+        self.creds_path: str = settings.GHUNT_CREDS_PATH
 
     def are_creds_loaded(self) -> bool:
         return all([self.cookies, self.osids, self.android.master_token])
 
     def load_creds(self, silent=False) -> None:
         """Loads cookies, OSIDs and tokens if they exist"""
-        print("READING CREDS PATH", self.creds_path)
-        if self.creds_path.resolve().is_file():
-            with open(self.creds_path, 'r') as f:
-                content = f.read()
-                
-            # Decode base64 content
-            decoded_content = base64.b64decode(content)
-            
-            # Parse and print JSON in readable format
-            json_content = json.loads(decoded_content)
-            print("\nCredentials Content:")
-            print(json.dumps(json_content, indent=2))
-        else:
-            print(f"Credentials file not found at: {self.creds_path}")
-        print("Load creds called with creds path: ", Path(self.creds_path).resolve())
-
-        print("Load creds called with creds path: ", Path(self.creds_path).resolve())
-        # traceback.print_stack()
-
-
-        if Path(self.creds_path).resolve().is_file():
-            print("ITS A FILE")
+        if Path(self.creds_path).is_file():
             try:
                 with open(self.creds_path, "r", encoding="utf-8") as f:
                     raw = f.read()
                 data = json.loads(base64.b64decode(raw).decode())
 
-                # print("DATA: ", data)
-
                 self.cookies = data["cookies"]
-                self.osids = {"a": "a"}
-                # self.osids = data["osids"]
+                self.osids = data["osids"]
 
                 self.android.master_token = data["android"]["master_token"]
                 self.android.authorization_tokens = data["android"]["authorization_tokens"]
 
-            except Exception as e:
-                print("EXCEPTION BLOCK")
-                raise GHuntInvalidSession("Stored session is corrupted.", str(e))
+            except Exception:
+                raise GHuntInvalidSession("Stored session is corrupted.")
         else:
-            raise GHuntInvalidSession("No stored session foundss.")
+            raise GHuntInvalidSession("No stored session found.")
         
         if not self.are_creds_loaded():
             raise GHuntInvalidSession("Stored session is incomplete.")

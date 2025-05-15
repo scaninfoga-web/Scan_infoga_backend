@@ -54,18 +54,7 @@ def get_user_activity_by_email(request):
                 ),
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
-        # Check if the requesting user is an admin or the owner of the activities
-        # if not request.user.is_staff and request.user.email != email:
-        #     return Response(
-        #         create_response(
-        #             status=False,
-        #             message="You don't have permission to access these activities",
-        #             data=None
-        #         ),
-        #         status=status.HTTP_403_FORBIDDEN
-        #     )
-            
+
         activities = UserActivity.objects.filter(email=email)
         serializer = UserActivitySerializer(activities, many=True)
         
@@ -87,13 +76,9 @@ def get_user_activity_by_email(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_user_activity(request):
-    """
-    API endpoint to manually add a user activity
-    """
     try:
         data = request.data
         email = data.get('email')
