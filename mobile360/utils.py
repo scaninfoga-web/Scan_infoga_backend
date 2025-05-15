@@ -10,12 +10,14 @@ def fetch_mobile360_data(mobile_number):
     api_key = os.getenv('MOBILE360_AUTH_KEY')
     
     headers = {
-        'Authorization': api_key,
+        'authkey': api_key,
         'Content-Type': 'application/json'
     }
     
     payload = {
-        'mobile': mobile_number
+        'mobile': mobile_number,
+        "consent" : "Y",
+        "consent_text" : "We confirm obtaining valid customer consent to access/process their mobile data. Consent remains valid, informed, and unwithdrawn."
     }
     
     try:

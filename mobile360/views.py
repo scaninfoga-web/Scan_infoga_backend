@@ -27,6 +27,8 @@ def mobile_360_search(request):
         if not realtime_data:
             try:
                 mobile_360 = Mobile360.objects.get(mobile_number=mobile_number)
+
+                print(mobile_360)
                 # Construct response from database
                 existing_data = {
                     "mobileNumber": mobile_number,
@@ -130,6 +132,7 @@ def mobile_360_search(request):
                 }
 
             except Mobile360.DoesNotExist:
+                print("PASS")
                 pass
 
         if existing_data and not realtime_data:
@@ -144,6 +147,8 @@ def mobile_360_search(request):
 
         # If no existing data or realtime_data is True, call external API
         api_response = fetch_mobile360_data(mobile_number)
+
+        print("API RESPONSE", api_response)
         
         if not api_response['success']:
             return Response(
