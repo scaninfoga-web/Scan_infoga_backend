@@ -26,5 +26,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('custom_auth.urls')),
     path('api/ghunt/', include('ghunt_util.urls')),
+    path('mobile360/', include('mobile360.urls')),
     path('api/user-activities/', include('user_activities.urls')),
 ]

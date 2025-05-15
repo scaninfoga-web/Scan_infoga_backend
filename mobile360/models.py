@@ -1,0 +1,110 @@
+from django.db import models
+
+class Mobile360(models.Model):
+    mobile_number = models.CharField(max_length=15, primary_key=True)
+    txn_id = models.UUIDField(unique=True)
+    api_category = models.CharField(max_length=50)
+    api_name = models.CharField(max_length=50)
+    billable = models.BooleanField(default=True)
+    message = models.CharField(max_length=255)
+    status = models.IntegerField()
+    datetime = models.DateTimeField()
+
+    class Meta:
+        db_table = 'mobile360'
+
+class DigitalPaymentInfo(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='digital_payment_info')
+    code = models.CharField(max_length=10)
+    name = models.CharField(max_length=255, null=True)
+    bank = models.CharField(max_length=255, null=True)
+    branch = models.CharField(max_length=255, null=True)
+    center = models.CharField(max_length=255, null=True, blank=True)
+    district = models.CharField(max_length=255, null=True)
+    state = models.CharField(max_length=255, null=True)
+    address = models.TextField(null=True)
+    contact = models.CharField(max_length=255, null=True, blank=True)
+    city = models.CharField(max_length=255, null=True)
+
+    class Meta:
+        db_table = 'digital_payment_info'
+
+class LPGInfo(models.Model):
+    mobile_response = models.ForeignKey(Mobile360Response, on_delete=models.CASCADE, related_name='lpg_info')
+    code = models.CharField(max_length=10)
+    gas_provider = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
+    consumer_mobile = models.CharField(max_length=15)
+    consumer_id = models.CharField(max_length=50)
+    consumer_status = models.CharField(max_length=50)
+    consumer_type = models.CharField(max_length=100)
+    address = models.TextField()
+    distributor_code = models.CharField(max_length=50)
+    distributor_name = models.CharField(max_length=255)
+    distributor_contact = models.CharField(max_length=50)
+    distributor_address = models.TextField()
+
+    class Meta:
+        db_table = 'lpg_info'
+
+class TelcoInfo(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='telco_info')
+    code = models.CharField(max_length=10)
+    is_valid = models.BooleanField(default=False)
+    subscriber_status = models.CharField(max_length=50)
+    connection_type = models.CharField(max_length=50)
+    msisdn = models.CharField(max_length=20)
+    msisdn_country_code = models.CharField(max_length=5)
+    network_name = models.CharField(max_length=100)
+    network_region = models.CharField(max_length=100)
+    is_roaming = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'telco_info'
+
+class MobileAgeInfo(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='mobile_age_info')
+    code = models.CharField(max_length=10)
+    is_ported = models.CharField(max_length=5)
+    mobile_age = models.CharField(max_length=50)
+    number_active = models.CharField(max_length=5)
+    number_valid = models.CharField(max_length=5)
+    ported_region = models.CharField(max_length=100, blank=True)
+    ported_telecom = models.CharField(max_length=100, blank=True)
+    region = models.CharField(max_length=100)
+    roaming = models.CharField(max_length=5)
+    telecom = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = 'mobile_age_info'
+
+class WhatsappInfo(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='whatsapp_info')
+    code = models.CharField(max_length=10)
+    status = models.CharField(max_length=50)
+    is_business = models.CharField(max_length=5)
+
+    class Meta:
+        db_table = 'whatsapp_info'
+
+class RevokeInfo(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='revoke_info')
+    code = models.CharField(max_length=10)
+    revoke_date = models.CharField(max_length=50, blank=True)
+    revoke_status = models.CharField(max_length=5)
+
+    class Meta:
+        db_table = 'revoke_info'
+
+class KeyHighlights(models.Model):
+    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='key_highlights')
+    digital_payment_id_name = models.CharField(max_length=255)
+    gas_connection_found = models.CharField(max_length=5)
+    connection_type = models.CharField(max_length=50)
+    whatsapp_business_account_status = models.CharField(max_length=50)
+    age_of_mobile = models.CharField(max_length=50)
+    active_status = models.CharField(max_length=5)
+    revoke_date = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        db_table = 'key_highlights'
