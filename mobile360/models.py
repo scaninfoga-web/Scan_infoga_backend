@@ -14,7 +14,7 @@ class Mobile360(models.Model):
         db_table = 'mobile360'
 
 class DigitalPaymentInfo(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='digital_payment_info')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='digital_payment_info')
     code = models.CharField(max_length=10)
     name = models.CharField(max_length=255, null=True)
     bank = models.CharField(max_length=255, null=True)
@@ -30,7 +30,7 @@ class DigitalPaymentInfo(models.Model):
         db_table = 'digital_payment_info'
 
 class LPGInfo(models.Model):
-    mobile_response = models.ForeignKey(Mobile360Response, on_delete=models.CASCADE, related_name='lpg_info')
+    mobile_response = models.ForeignKey(Mobile360, on_delete=models.CASCADE, related_name='lpg_info')
     code = models.CharField(max_length=10)
     gas_provider = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
@@ -48,7 +48,7 @@ class LPGInfo(models.Model):
         db_table = 'lpg_info'
 
 class TelcoInfo(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='telco_info')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='telco_info')
     code = models.CharField(max_length=10)
     is_valid = models.BooleanField(default=False)
     subscriber_status = models.CharField(max_length=50)
@@ -63,7 +63,7 @@ class TelcoInfo(models.Model):
         db_table = 'telco_info'
 
 class MobileAgeInfo(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='mobile_age_info')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='mobile_age_info')
     code = models.CharField(max_length=10)
     is_ported = models.CharField(max_length=5)
     mobile_age = models.CharField(max_length=50)
@@ -79,7 +79,7 @@ class MobileAgeInfo(models.Model):
         db_table = 'mobile_age_info'
 
 class WhatsappInfo(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='whatsapp_info')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='whatsapp_info')
     code = models.CharField(max_length=10)
     status = models.CharField(max_length=50)
     is_business = models.CharField(max_length=5)
@@ -88,7 +88,7 @@ class WhatsappInfo(models.Model):
         db_table = 'whatsapp_info'
 
 class RevokeInfo(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='revoke_info')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='revoke_info')
     code = models.CharField(max_length=10)
     revoke_date = models.CharField(max_length=50, blank=True)
     revoke_status = models.CharField(max_length=5)
@@ -97,7 +97,7 @@ class RevokeInfo(models.Model):
         db_table = 'revoke_info'
 
 class KeyHighlights(models.Model):
-    mobile_response = models.OneToOneField(Mobile360Response, on_delete=models.CASCADE, related_name='key_highlights')
+    mobile_response = models.OneToOneField(Mobile360, on_delete=models.CASCADE, related_name='key_highlights')
     digital_payment_id_name = models.CharField(max_length=255)
     gas_connection_found = models.CharField(max_length=5)
     connection_type = models.CharField(max_length=50)
