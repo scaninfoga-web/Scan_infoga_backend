@@ -2,7 +2,25 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime
+import re
 from core.utils import create_response
+
+
+def to_camel_case(snake_str):
+    """Convert snake_case string to camelCase"""
+    if not isinstance(snake_str, str):
+        return snake_str
+    components = snake_str.split('_')
+    return components[0].lower() + ''.join(x.title() for x in components[1:])
+
+
+def dict_to_camel_case(data):
+    """Recursively convert dictionary keys to camelCase"""
+    if isinstance(data, dict):
+        return {to_camel_case(k): dict_to_camel_case(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [dict_to_camel_case(item) for item in data]
+    return data
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
@@ -30,11 +48,12 @@ def mobile_360_search(request):
 
                 print(mobile_360)
                 # Construct response from database
+                # Create response dictionary with snake_case keys first
                 existing_data = {
-                    "mobileNumber": mobile_number,
-                    "txnId": str(mobile_360.txn_id),
-                    "apiCategory": mobile_360.api_category,
-                    "apiName": mobile_360.api_name,
+                    "mobile_number": mobile_number,
+                    "txn_id": str(mobile_360.txn_id),
+                    "api_category": mobile_360.api_category,
+                    "api_name": mobile_360.api_name,
                     "billable": mobile_360.billable,
                     "message": mobile_360.message,
                     "status": mobile_360.status,
@@ -136,11 +155,13 @@ def mobile_360_search(request):
                 pass
 
         if existing_data and not realtime_data:
+            # Convert all keys to camelCase before returning
+            camel_case_data = dict_to_camel_case(existing_data)
             return Response(
                 create_response(
                     status=True,
                     message='Data retrieved from database',
-                    data=existing_data
+                    data=camel_case_data
                 ), 
                 status=status.HTTP_200_OK
             )
