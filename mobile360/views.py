@@ -3,13 +3,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime
 from core.utils import create_response
+import uuid
+from django.utils import timezone
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
     MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights,
-    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls
+    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls, GstTurnover
 )
-from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data,fetch_esic_data,fetch_gst_data
+from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data, fetch_gst_data, fetch_gst_turnover_data
 
 @api_view(['POST'])
 def mobile_360_search(request):
@@ -306,8 +308,6 @@ def mobile_360_search(request):
             ), 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-
 
 @api_view(['POST'])
 def uan_history_search(request):
@@ -648,7 +648,6 @@ def esic_details_search(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
 @api_view(['POST'])
 def gst_advance_v2(request):
     try:
@@ -861,5 +860,201 @@ def gst_advance_v2(request):
                 message=str(e),
                 data=None
             ), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+def gst_turnover(request):
+    try:
+        gstin = request.data.get('gstin')
+        year = request.data.get('year')
+        realtime_data = request.data.get('realtimeData', False)
+
+        if not gstin or not year:
+            return Response(
+                create_response(
+                    status=False,
+                    message='GSTIN and Year are required',
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Try fetching from DB if not real-time
+        if not realtime_data:
+            try:
+                turnover_data = GstTurnover.objects.filter(gstin=gstin, year=year).order_by('-datetime').first()
+                
+                if turnover_data:
+                    # Get related data
+                    authorized_signatories = turnover_data.authorized_signatories.all().values_list('name', flat=True)
+                    business_natures = turnover_data.business_natures.all().values_list('nature', flat=True)
+                    
+                    result = {
+                        "gst_estimated_total": turnover_data.gst_estimated_total,
+                        "gst_filed_total": turnover_data.gst_filed_total,
+                        "year": turnover_data.year,
+                        "filing_date": turnover_data.filing_date,
+                        "pan_estimated_total": turnover_data.pan_estimated_total,
+                        "pan_filed_total": turnover_data.pan_filed_total,
+                        "gst_status": turnover_data.gst_status,
+                        "legal_name": turnover_data.legal_name,
+                        "trade_name": turnover_data.trade_name,
+                        "register_date": turnover_data.register_date,
+                        "tax_payer_type": turnover_data.tax_payer_type,
+                        "authorized_signatory": list(authorized_signatories),
+                        "business_nature": list(business_natures)
+                    }
+
+                    response_data = {
+                        "gstin": gstin,
+                        "txnId": turnover_data.txn_id,
+                        "apiCategory": "Know Your Business (KYB)",
+                        "apiName": "GST Turnover",
+                        "billable": True,
+                        "message": "Success",
+                        "status": 1,
+                        "result": result,
+                        "datetime": turnover_data.datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
+                    }
+
+                    return Response(
+                        create_response(
+                            status=True,
+                            message='Data retrieved from database',
+                            data=response_data
+                        ),
+                        status=status.HTTP_200_OK
+                    )
+
+            except Exception as db_error:
+                logger.error(f"Error retrieving from database: {str(db_error)}")
+                # Continue to API call if there's an error retrieving from DB
+
+        # Call external API
+        api_response = fetch_gst_turnover_data(gstin, year)
+
+        if not api_response['success']:
+            return Response(
+                create_response(
+                    status=False,
+                    message=api_response['error'],
+                    data=None
+                ),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        api_data = api_response['data']
+        
+        # Check for API response status
+        api_status = api_data.get('status')
+        if api_status != 1:  # Status 1 typically means success
+            # Return the API's error response directly
+            return Response(
+                create_response(
+                    status=False,
+                    message=api_data.get('message', 'External API returned an error'),
+                    data=api_data
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        result = api_data.get('result', {})
+        
+        # Current datetime for the record
+        current_datetime = timezone.now()
+        
+        # Create the GST Turnover record with all required fields
+        try:
+            turnover_record = GstTurnover.objects.create(
+                txn_id=api_data.get('txn_id', str(uuid.uuid4())),
+                gstin=gstin,
+                gst_estimated_total=result.get('gst_estimated_total'),
+                gst_filed_total=result.get('gst_filed_total', 0),
+                year=result.get('year', year),
+                filing_date=result.get('filing_date', ''),
+                pan_estimated_total=result.get('pan_estimated_total', 0),
+                pan_filed_total=result.get('pan_filed_total', 0),
+                gst_status=result.get('gst_status', ''),
+                legal_name=result.get('legal_name', ''),
+                trade_name=result.get('trade_name', ''),
+                register_date=result.get('register_date', ''),
+                tax_payer_type=result.get('tax_payer_type', ''),
+                datetime=datetime.strptime(api_data.get('datetime', current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")), 
+                                           "%Y-%m-%d %H:%M:%S.%f"),
+                turnover=result.get('gst_filed_total', 0),
+                source='API',
+                last_updated=current_datetime
+            )
+            
+            # Save the authorized signatories
+            for signatory in result.get('authorized_signatory', []):
+                GstTurnoverAuthorizedSignatory.objects.create(
+                    gst_turnover=turnover_record,
+                    name=signatory
+                )
+                
+            # Save the business natures
+            for nature in result.get('business_nature', []):
+                GstTurnoverBusinessNature.objects.create(
+                    gst_turnover=turnover_record,
+                    nature=nature
+                )
+            
+            # Prepare response - use the actual API data to ensure accuracy
+            response_data = {
+                "gstin": gstin,
+                "txnId": api_data.get('txn_id', ''),
+                "apiCategory": api_data.get('api_category', 'Know Your Business (KYB)'),
+                "apiName": api_data.get('api_name', 'GST Turnover'),
+                "billable": api_data.get('billable', True),
+                "message": api_data.get('message', 'Success'),
+                "status": api_data.get('status', 1),
+                "result": result,  # Use the original result directly
+                "datetime": api_data.get('datetime', current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f"))
+            }
+
+            return Response(
+                create_response(
+                    status=True,
+                    message='Data retrieved from API and saved successfully',
+                    data=response_data
+                ),
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as db_error:
+            logger.error(f"Database error: {str(db_error)}")
+            # If we can't save to the database, still return the API response to the user
+            response_data = {
+                "gstin": gstin,
+                "txnId": api_data.get('txn_id', ''),
+                "apiCategory": api_data.get('api_category', 'Know Your Business (KYB)'),
+                "apiName": api_data.get('api_name', 'GST Turnover'),
+                "billable": api_data.get('billable', True),
+                "message": api_data.get('message', 'Success'),
+                "status": api_data.get('status', 1),
+                "result": result,
+                "datetime": api_data.get('datetime', current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")),
+                "db_error": str(db_error)  # Add the error for debugging
+            }
+            
+            return Response(
+                create_response(
+                    status=True,
+                    message='Data retrieved from API but failed to save to database',
+                    data=response_data
+                ),
+                status=status.HTTP_200_OK
+            )
+
+    except Exception as e:
+        logger.error(f"General error in gst_turnover view: {str(e)}")
+        return Response(
+            create_response(
+                status=False,
+                message=str(e),
+                data=None
+            ),
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

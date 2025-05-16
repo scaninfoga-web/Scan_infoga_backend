@@ -252,3 +252,47 @@ class GstBusinessAddress(models.Model):
     
     class Meta:
         db_table = 'gst_business_address'
+        
+################### GST Turnover ###################
+class GstTurnover(models.Model):
+    txn_id = models.CharField(max_length=50, primary_key=True)
+    gstin = models.CharField(max_length=15)  # <-- Add this line
+    gst_estimated_total = models.FloatField(null=True)
+    gst_filed_total = models.FloatField()
+    year = models.CharField(max_length=10)
+    filing_date = models.CharField(max_length=20)
+    pan_estimated_total = models.FloatField()
+    pan_filed_total = models.FloatField()
+    gst_status = models.CharField(max_length=50)
+    legal_name = models.CharField(max_length=255)
+    trade_name = models.CharField(max_length=255)
+    register_date = models.CharField(max_length=20)
+    tax_payer_type = models.CharField(max_length=50)
+    datetime = models.DateTimeField()
+
+    # Optional fields for compatibility or display
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    turnover = models.FloatField(null=True, blank=True)
+    source = models.CharField(max_length=100, null=True, blank=True)
+    last_updated = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'gst_turnover'
+
+
+
+class GstTurnoverAuthorizedSignatory(models.Model):
+    gst_turnover = models.ForeignKey(GstTurnover, on_delete=models.CASCADE, related_name='authorized_signatories')
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        db_table = 'gst_turnover_authorized_signatory'
+
+
+class GstTurnoverBusinessNature(models.Model):
+    gst_turnover = models.ForeignKey(GstTurnover, on_delete=models.CASCADE, related_name='business_natures')
+    nature = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = 'gst_turnover_business_nature'

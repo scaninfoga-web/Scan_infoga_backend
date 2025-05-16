@@ -240,7 +240,7 @@ def fetch_esic_data(mobile_number):
             'error': f"Unexpected error: {str(e)}"
         }
 
-
+##################### GST Advance ##################
 def fetch_gst_data(gstin):
     """
     Fetch GST verification data from external API
@@ -269,6 +269,51 @@ def fetch_gst_data(gstin):
             'success': True,
             'data': data
         }
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'error': f"API request failed: {str(e)}"
+        }
+    except json.JSONDecodeError:
+        return {
+            'success': False,
+            'error': "Failed to parse API response"
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }
+        
+##################### GST Turnover ##################
+def fetch_gst_turnover_data(gstin, year):
+    """
+    Fetch GST turnover data from external API.
+    """
+    api_url = os.getenv('GST_TURNOVER_API_URL')
+    api_key = os.getenv('GST_AUTH_KEY')
+
+    headers = {
+        'authkey': api_key,
+        'Content-Type': 'application/json'
+    }
+
+    payload = {
+        'gstin': gstin,
+        'year': year,
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()
+
+        data = response.json()
+
+        return {
+            'success': True,
+            'data': data
+        }
+
     except requests.exceptions.RequestException as e:
         return {
             'success': False,
