@@ -2,31 +2,13 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime
-import re
 from core.utils import create_response
-
-
-def to_camel_case(snake_str):
-    """Convert snake_case string to camelCase"""
-    if not isinstance(snake_str, str):
-        return snake_str
-    components = snake_str.split('_')
-    return components[0].lower() + ''.join(x.title() for x in components[1:])
-
-
-def dict_to_camel_case(data):
-    """Recursively convert dictionary keys to camelCase"""
-    if isinstance(data, dict):
-        return {to_camel_case(k): dict_to_camel_case(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [dict_to_camel_case(item) for item in data]
-    return data
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
     MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights
 )
-from .utils import fetch_mobile360_data
+from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data
 
 @api_view(['POST'])
 def mobile_360_search(request):
@@ -45,15 +27,12 @@ def mobile_360_search(request):
         if not realtime_data:
             try:
                 mobile_360 = Mobile360.objects.get(mobile_number=mobile_number)
-
-                print(mobile_360)
                 # Construct response from database
-                # Create response dictionary with snake_case keys first
                 existing_data = {
-                    "mobile_number": mobile_number,
-                    "txn_id": str(mobile_360.txn_id),
-                    "api_category": mobile_360.api_category,
-                    "api_name": mobile_360.api_name,
+                    "mobileNumber": mobile_number,
+                    "txnId": str(mobile_360.txn_id),
+                    "apiCategory": mobile_360.api_category,
+                    "apiName": mobile_360.api_name,
                     "billable": mobile_360.billable,
                     "message": mobile_360.message,
                     "status": mobile_360.status,
@@ -151,25 +130,20 @@ def mobile_360_search(request):
                 }
 
             except Mobile360.DoesNotExist:
-                print("PASS")
                 pass
 
         if existing_data and not realtime_data:
-            # Convert all keys to camelCase before returning
-            camel_case_data = dict_to_camel_case(existing_data)
             return Response(
                 create_response(
                     status=True,
                     message='Data retrieved from database',
-                    data=camel_case_data
+                    data=existing_data
                 ), 
                 status=status.HTTP_200_OK
             )
 
         # If no existing data or realtime_data is True, call external API
         api_response = fetch_mobile360_data(mobile_number)
-
-        print("API RESPONSE", api_response)
         
         if not api_response['success']:
             return Response(
@@ -301,6 +275,242 @@ def mobile_360_search(request):
         # Format response for client
         response_data = {
             "mobileNumber": mobile_number,
+            "txnId": api_data['txn_id'],
+            "apiCategory": api_data['api_category'],
+            "apiName": api_data['api_name'],
+            "billable": api_data['billable'],
+            "message": api_data['message'],
+            "status": api_data['status'],
+            "datetime": api_data['datetime'],
+            "result": api_data['result']
+        }
+
+        return Response(
+            create_response(
+                status=True,
+                message='Data retrieved from API and saved successfully',
+                data=response_data
+            ), 
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message=str(e),
+                data=None
+            ), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+####################### UAN HISTORY ####################
+
+@api_view(['POST'])
+def uan_history_search(request):
+    try:
+        uan_no_list = request.data.get('uanNoList', [])
+        realtime_data = request.data.get('realtimeData', False)
+
+        if not uan_no_list:
+            return Response(
+                create_response(
+                    status=False,
+                    message='UAN number list is required',
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response_data = []
+        for uan_no in uan_no_list:
+            # Check if data exists in database
+            existing_data = None
+            if not realtime_data:
+                try:
+                    uan_history = UanHistoryLatestV2.objects.get(uan=uan_no)
+                    # Construct response from database
+                    existing_data = {
+                        "uan": uan_no,
+                        "txnId": str(uan_history.txn_id),
+                        "apiCategory": uan_history.api_category,
+                        "apiName": uan_history.api_name,
+                        "billable": uan_history.billable,
+                        "message": uan_history.message,
+                        "status": uan_history.status,
+                        "datetime": uan_history.datetime.isoformat(),
+                        "result": {
+                            "name": uan_history.name,
+                            "dob": uan_history.dob.isoformat(),
+                            "guardian_name": uan_history.guardian_name,
+                            "company_name": uan_history.company_name,
+                            "member_id": uan_history.member_id,
+                            "date_of_joining": uan_history.date_of_joining.isoformat(),
+                            "last_pf_submitted": uan_history.last_pf_submitted.isoformat()
+                        }
+                    }
+                    response_data.append(existing_data)
+                    continue
+                except UanHistoryLatestV2.DoesNotExist:
+                    pass
+
+            # If no existing data or realtime_data is True, call external API
+            api_response = fetch_uan_history_data(uan_no)
+            
+            if not api_response['success']:
+                response_data.append({
+                    "uan": uan_no,
+                    "error": api_response['error']
+                })
+                continue
+            
+            # Get the API response data
+            api_data = api_response['data']
+            
+            # Save to database
+            uan_history = UanHistoryLatestV2.objects.create(
+                uan=uan_no,
+                txn_id=api_data['txn_id'],
+                api_category=api_data['api_category'],
+                api_name=api_data['api_name'],
+                billable=api_data['billable'],
+                message=api_data['message'],
+                status=api_data['status'],
+                datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime'],
+                name=api_data['result']['name'],
+                dob=api_data['result']['dob'],
+                guardian_name=api_data['result']['guardian_name'],
+                company_name=api_data['result']['company_name'],
+                member_id=api_data['result']['member_id'],
+                date_of_joining=api_data['result']['date_of_joining'],
+                last_pf_submitted=api_data['result']['last_pf_submitted']
+            )
+
+            response_data.append({
+                "uan": uan_no,
+                "txnId": api_data['txn_id'],
+                "apiCategory": api_data['api_category'],
+                "apiName": api_data['api_name'],
+                "billable": api_data['billable'],
+                "message": api_data['message'],
+                "status": api_data['status'],
+                "datetime": api_data['datetime'],
+                "result": api_data['result']
+            })
+
+        return Response(
+            create_response(
+                status=True,
+                message='Data retrieved successfully',
+                data=response_data
+            ), 
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message=str(e),
+                data=None
+            ), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+####################### UAN EMPLOYMENT HISTORY 
+@api_view(['POST'])
+def uan_employment_history_search(request):
+    try:
+        uan_no = request.data.get('uanNo')
+        realtime_data = request.data.get('realtimeData', False)
+        
+        if not uan_no:
+            return Response(
+                create_response(
+                    status=False,
+                    message='UAN number is required',
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if data exists in database
+        existing_data = None
+        if not realtime_data:
+            try:
+                uan_history = UanHistoryLatestV2.objects.get(uan=uan_no)
+                # Construct response from database
+                existing_data = {
+                    "uan": uan_no,
+                    "txnId": str(uan_history.txn_id),
+                    "apiCategory": uan_history.api_category,
+                    "apiName": uan_history.api_name,
+                    "billable": uan_history.billable,
+                    "message": uan_history.message,
+                    "status": uan_history.status,
+                    "datetime": uan_history.datetime.isoformat(),
+                    "result": {
+                        "name": uan_history.name,
+                        "dob": uan_history.dob.isoformat(),
+                        "guardian_name": uan_history.guardian_name,
+                        "company_name": uan_history.company_name,
+                        "member_id": uan_history.member_id,
+                        "date_of_joining": uan_history.date_of_joining.isoformat(),
+                        "last_pf_submitted": uan_history.last_pf_submitted.isoformat()
+                    }
+                }
+            except UanHistoryLatestV2.DoesNotExist:
+                pass
+
+        if existing_data and not realtime_data:
+            return Response(
+                create_response(
+                    status=True,
+                    message='Data retrieved from database',
+                    data=existing_data
+                ), 
+                status=status.HTTP_200_OK
+            )
+
+        # Call external API
+        api_response = fetch_uan_employment_data(uan_no)
+        
+        if not api_response['success']:
+            return Response(
+                create_response(
+                    status=False,
+                    message=api_response['error'],
+                    data=None
+                ),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Get the API response data
+        api_data = api_response['data']
+        
+        # Save to database
+        uan_history = UanHistoryLatestV2.objects.create(
+            uan=uan_no,
+            txn_id=api_data['txn_id'],
+            api_category=api_data['api_category'],
+            api_name=api_data['api_name'],
+            billable=api_data['billable'],
+            message=api_data['message'],
+            status=api_data['status'],
+            datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime'],
+            name=api_data['result']['name'],
+            dob=api_data['result']['dob'],
+            guardian_name=api_data['result']['guardian_name'],
+            company_name=api_data['result']['company_name'],
+            member_id=api_data['result']['member_id'],
+            date_of_joining=api_data['result']['date_of_joining'],
+            last_pf_submitted=api_data['result']['last_pf_submitted']
+        )
+
+        # Format response for client
+        response_data = {
+            "uan": uan_no,
             "txnId": api_data['txn_id'],
             "apiCategory": api_data['api_category'],
             "apiName": api_data['api_name'],

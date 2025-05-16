@@ -108,3 +108,52 @@ class KeyHighlights(models.Model):
 
     class Meta:
         db_table = 'key_highlights'
+
+############################# UAN HISTORY LATEST V2 ###########################
+
+class UanHistoryLatestV2(models.Model):
+    uan = models.CharField(max_length=12, primary_key=True)
+    txn_id = models.UUIDField(unique=True)
+    api_category = models.CharField(max_length=50)
+    api_name = models.CharField(max_length=50)
+    billable = models.BooleanField(default=True)
+    message = models.CharField(max_length=255)
+    status = models.IntegerField()
+    datetime = models.DateTimeField()
+    
+    # Result fields
+    name = models.CharField(max_length=255)
+    dob = models.DateField()
+    guardian_name = models.CharField(max_length=255)
+    company_name = models.CharField(max_length=255)
+    member_id = models.CharField(max_length=50)
+    date_of_joining = models.DateField()
+    last_pf_submitted = models.DateField()
+
+    class Meta:
+        db_table = 'uan_history_latest_v2'
+
+############## UAN History ##############
+class UanEmploymentHistory(models.Model):
+    # Basic info from result
+    name = models.CharField(max_length=255)
+    dob = models.CharField(max_length=10)  # Store as string to maintain dd/mm/yyyy format
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'uan_employment_history'
+
+class CompanyHistory(models.Model):
+    uan_history = models.ForeignKey(UanEmploymentHistory, on_delete=models.CASCADE, related_name='employment_history')
+    company_name = models.CharField(max_length=255)
+    company_address = models.TextField()
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'company_history'
