@@ -148,8 +148,6 @@ def mobile_360_search(request):
         # If no existing data or realtime_data is True, call external API
         api_response = fetch_mobile360_data(mobile_number)
         
-        print(api_response)
-        
         if not api_response['success']:
             return Response(
                 create_response(
