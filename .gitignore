@@ -52,3 +52,5 @@ Thumbs.db
 # testing qr
 test_qr.py
 test_qr_code.png
+
+pgdata/

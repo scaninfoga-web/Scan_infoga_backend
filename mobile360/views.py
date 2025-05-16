@@ -6,9 +6,10 @@ from core.utils import create_response
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
-    MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights, UanEmploymentHistory, EsicDtls
+    MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights,
+    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls
 )
-from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data
+from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data,fetch_esic_data,fetch_gst_data
 
 @api_view(['POST'])
 def mobile_360_search(request):
@@ -142,6 +143,8 @@ def mobile_360_search(request):
                 status=status.HTTP_200_OK
             )
 
+        # In mobile_360_search function, update the API response handling:
+        
         # If no existing data or realtime_data is True, call external API
         api_response = fetch_mobile360_data(mobile_number)
         
@@ -305,7 +308,6 @@ def mobile_360_search(request):
         )
 
 
-####################### UAN HISTORY ####################
 
 @api_view(['POST'])
 def uan_history_search(request):
@@ -325,79 +327,91 @@ def uan_history_search(request):
 
         response_data = []
         for uan_no in uan_no_list:
-            # Check if data exists in database
-            existing_data = None
-            if not realtime_data:
-                try:
-                    uan_history = UanHistoryLatestV2.objects.get(uan=uan_no)
-                    # Construct response from database
-                    existing_data = {
-                        "uan": uan_no,
-                        "txnId": str(uan_history.txn_id),
-                        "apiCategory": uan_history.api_category,
-                        "apiName": uan_history.api_name,
-                        "billable": uan_history.billable,
-                        "message": uan_history.message,
-                        "status": uan_history.status,
-                        "datetime": uan_history.datetime.isoformat(),
-                        "result": {
-                            "name": uan_history.name,
-                            "dob": uan_history.dob.isoformat(),
-                            "guardian_name": uan_history.guardian_name,
-                            "company_name": uan_history.company_name,
-                            "member_id": uan_history.member_id,
-                            "date_of_joining": uan_history.date_of_joining.isoformat(),
-                            "last_pf_submitted": uan_history.last_pf_submitted.isoformat()
+            try:
+                # Check if data exists in database
+                existing_data = None
+                if not realtime_data:
+                    try:
+                        uan_history = UanHistoryLatestV2.objects.get(uan=uan_no)
+                        # Construct response from database
+                        existing_data = {
+                            "uan": uan_no,
+                            "txnId": str(uan_history.txn_id),
+                            "apiCategory": uan_history.api_category,
+                            "apiName": uan_history.api_name,
+                            "billable": uan_history.billable,
+                            "message": uan_history.message,
+                            "status": uan_history.status,
+                            "datetime": uan_history.datetime.isoformat(),
+                            "result": {
+                                "name": uan_history.name,
+                                "dob": uan_history.dob.isoformat(),
+                                "guardian_name": uan_history.guardian_name,
+                                "company_name": uan_history.company_name,
+                                "member_id": uan_history.member_id,
+                                "date_of_joining": uan_history.date_of_joining.isoformat(),
+                                "last_pf_submitted": uan_history.last_pf_submitted.isoformat()
+                            }
                         }
-                    }
-                    response_data.append(existing_data)
-                    continue
-                except UanHistoryLatestV2.DoesNotExist:
-                    pass
+                        response_data.append(existing_data)
+                        continue
+                    except UanHistoryLatestV2.DoesNotExist:
+                        pass
 
-            # If no existing data or realtime_data is True, call external API
-            api_response = fetch_uan_history_data(uan_no)
-            
-            if not api_response['success']:
+                # If no existing data or realtime_data is True, call external API
+                api_response = fetch_uan_history_data(uan_no)
+                
+                if not api_response['success']:
+                    response_data.append({
+                        "uan": uan_no,
+                        "error": api_response['error']
+                    })
+                    continue
+                
+                # Get the API response data
+                api_data = api_response['data']
+                
+                try:
+                    # Save to database
+                    uan_history = UanHistoryLatestV2.objects.create(
+                        uan=uan_no,
+                        txn_id=api_data['txn_id'],
+                        api_category=api_data['api_category'],
+                        api_name=api_data['api_name'],
+                        billable=api_data['billable'],
+                        message=api_data['message'],
+                        status=api_data['status'],
+                        datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime'],
+                        name=api_data['result']['name'],
+                        dob=api_data['result']['dob'],
+                        guardian_name=api_data['result']['guardian_name'],
+                        company_name=api_data['result']['company_name'],
+                        member_id=api_data['result']['member_id'],
+                        date_of_joining=api_data['result']['date_of_joining'],
+                        last_pf_submitted=api_data['result']['last_pf_submitted']
+                    )
+
+                    response_data.append({
+                        "uan": uan_no,
+                        "txnId": api_data['txn_id'],
+                        "apiCategory": api_data['api_category'],
+                        "apiName": api_data['api_name'],
+                        "billable": api_data['billable'],
+                        "message": api_data['message'],
+                        "status": api_data['status'],
+                        "datetime": api_data['datetime'],
+                        "result": api_data['result']
+                    })
+                except Exception as e:
+                    response_data.append({
+                        "uan": uan_no,
+                        "error": f"Error saving data: {str(e)}"
+                    })
+            except Exception as e:
                 response_data.append({
                     "uan": uan_no,
-                    "error": api_response['error']
+                    "error": f"Error processing UAN: {str(e)}"
                 })
-                continue
-            
-            # Get the API response data
-            api_data = api_response['data']
-            
-            # Save to database
-            uan_history = UanHistoryLatestV2.objects.create(
-                uan=uan_no,
-                txn_id=api_data['txn_id'],
-                api_category=api_data['api_category'],
-                api_name=api_data['api_name'],
-                billable=api_data['billable'],
-                message=api_data['message'],
-                status=api_data['status'],
-                datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime'],
-                name=api_data['result']['name'],
-                dob=api_data['result']['dob'],
-                guardian_name=api_data['result']['guardian_name'],
-                company_name=api_data['result']['company_name'],
-                member_id=api_data['result']['member_id'],
-                date_of_joining=api_data['result']['date_of_joining'],
-                last_pf_submitted=api_data['result']['last_pf_submitted']
-            )
-
-            response_data.append({
-                "uan": uan_no,
-                "txnId": api_data['txn_id'],
-                "apiCategory": api_data['api_category'],
-                "apiName": api_data['api_name'],
-                "billable": api_data['billable'],
-                "message": api_data['message'],
-                "status": api_data['status'],
-                "datetime": api_data['datetime'],
-                "result": api_data['result']
-            })
 
         return Response(
             create_response(
@@ -418,7 +432,6 @@ def uan_history_search(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-####################### UAN EMPLOYMENT HISTORY 
 @api_view(['POST'])
 def uan_employment_history_search(request):
     try:
@@ -451,51 +464,62 @@ def uan_employment_history_search(request):
         # Get the API response data
         api_data = api_response['data']
         
-        # Save to database
-        uan_history = UanEmploymentHistory.objects.create(
-            name=api_data['result']['name'],
-            dob=api_data['result']['dob']
-        )
-
-        # Save company history
-        for company_data in api_data['result']['employment_history']:
-            CompanyHistory.objects.create(
-                uan_history=uan_history,
-                company_name=company_data.get('company_name', ''),
-                company_address=company_data.get('company_address', '')
+        try:
+            # Save to database with default values if needed
+            uan_history = UanEmploymentHistory.objects.create(
+                name=api_data['result']['name'] or 'Unknown',
+                dob=api_data['result']['dob'] or '01/01/1900'
             )
 
-        # Format response for client
-        response_data = {
-            "uan": uan_no,
-            "txnId": api_data['txn_id'],
-            "apiCategory": api_data['api_category'],
-            "apiName": api_data['api_name'],
-            "billable": api_data['billable'],
-            "message": api_data['message'],
-            "status": api_data['status'],
-            "datetime": api_data['datetime'],
-            "result": {
-                "name": uan_history.name,
-                "dob": uan_history.dob,
-                "employment_history": [
-                    {
-                        "company_name": history.company_name,
-                        "company_address": history.company_address
-                    }
-                    for history in uan_history.employment_history.all()
-                ]
-            }
-        }
+            # Save company history
+            for company_data in api_data['result']['employment_history']:
+                CompanyHistory.objects.create(
+                    uan_history=uan_history,
+                    company_name=company_data.get('company_name', 'Unknown Company'),
+                    company_address=company_data.get('company_address', 'Address not available')
+                )
 
-        return Response(
-            create_response(
-                status=True,
-                message='Data retrieved from API and saved successfully',
-                data=response_data
-            ), 
-            status=status.HTTP_200_OK
-        )
+            # Format response for client
+            response_data = {
+                "uan": uan_no,
+                "txnId": api_data['txn_id'],
+                "apiCategory": api_data['api_category'],
+                "apiName": api_data['api_name'],
+                "billable": api_data['billable'],
+                "message": api_data['message'],
+                "status": api_data['status'],
+                "datetime": api_data['datetime'],
+                "result": {
+                    "name": uan_history.name,
+                    "dob": uan_history.dob,
+                    "employment_history": [
+                        {
+                            "company_name": history.company_name,
+                            "company_address": history.company_address
+                        }
+                        for history in uan_history.employment_history.all()
+                    ]
+                }
+            }
+
+            return Response(
+                create_response(
+                    status=True,
+                    message='Data retrieved from API and saved successfully',
+                    data=response_data
+                ), 
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                create_response(
+                    status=False,
+                    message=f"Error saving data: {str(e)}",
+                    data=None
+                ),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     except Exception as e:
         return Response(
@@ -506,7 +530,6 @@ def uan_employment_history_search(request):
             ), 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
 
 @api_view(['POST'])
 def esic_details_search(request):
@@ -579,7 +602,7 @@ def esic_details_search(request):
         
         # Save to database
         esic_details = []
-        for esic_record in api_data['result']:
+        for esic_record in api_data['result']['esic_details']:
             esic_detail = EsicDtls.objects.create(
                 esic_number=esic_record.get('esic_number', ''),
                 name=esic_record.get('name', ''),
@@ -587,9 +610,9 @@ def esic_details_search(request):
                 employer_name=esic_record.get('employer_name', ''),
                 mobile=mobile_number,
                 uan_number=esic_record.get('uan_number', ''),
-                bank_name=esic_record.get('bank_details', {}).get('bank_name', ''),
-                branch_name=esic_record.get('bank_details', {}).get('branch_name', ''),
-                bank_account_status=esic_record.get('bank_details', {}).get('bank_account_status', '')
+                bank_name=esic_record.get('bank_name', ''),
+                branch_name=esic_record.get('branch_name', ''),
+                bank_account_status=esic_record.get('bank_account_status', '')
             )
             esic_details.append(esic_detail)
 
@@ -627,7 +650,7 @@ def esic_details_search(request):
 
 
 @api_view(['POST'])
-def gst_verification(request):
+def gst_advance_v2(request):
     try:
         gstin = request.data.get('gstin')
         realtime_data = request.data.get('realtimeData', False)
