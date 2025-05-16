@@ -157,3 +157,98 @@ class CompanyHistory(models.Model):
 
     class Meta:
         db_table = 'company_history'
+
+################### MOBILE TO ESIC DETAILS
+class EsicDtls(models.Model):
+    esic_number = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    employer_code = models.CharField(max_length=50)
+    employer_name = models.CharField(max_length=255, blank=True)
+    mobile = models.CharField(max_length=15)
+    uan_number = models.CharField(max_length=20, blank=True)
+    bank_name = models.CharField(max_length=100, blank=True)
+    branch_name = models.CharField(max_length=100, blank=True)
+    bank_account_status = models.CharField(max_length=20)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'esic_dtls'
+
+################### GST VERIFICATION ###################
+class GstVerification(models.Model):
+    gstin = models.CharField(max_length=15, primary_key=True)
+    
+    # Result fields
+    aggregate_turn_over = models.CharField(max_length=50, blank=True)
+    business_constitution = models.CharField(max_length=100)
+    can_flag = models.CharField(max_length=50, blank=True)
+    central_jurisdiction = models.TextField()
+    compliance_rating = models.CharField(max_length=50, blank=True)
+    current_registration_status = models.CharField(max_length=50)
+    is_field_visit_conducted = models.CharField(max_length=5)
+    legal_name = models.CharField(max_length=255)
+    mandate_e_invoice = models.CharField(max_length=50, blank=True)
+    register_cancellation_date = models.CharField(max_length=20, blank=True)
+    register_date = models.CharField(max_length=20)
+    state_jurisdiction = models.TextField()
+    tax_payer_type = models.CharField(max_length=50)
+    trade_name = models.CharField(max_length=255)
+    gross_total_income = models.CharField(max_length=50, blank=True)
+    gross_total_income_financial_year = models.CharField(max_length=20, blank=True)
+    business_email = models.CharField(max_length=100, blank=True)
+    business_mobile = models.CharField(max_length=20, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'gst_verification'
+
+class GstAuthorizedSignatory(models.Model):
+    gst_verification = models.ForeignKey(GstVerification, on_delete=models.CASCADE, related_name='authorized_signatories')
+    name = models.CharField(max_length=255)
+    
+    class Meta:
+        db_table = 'gst_authorized_signatory'
+
+class GstBusinessNature(models.Model):
+    gst_verification = models.ForeignKey(GstVerification, on_delete=models.CASCADE, related_name='business_natures')
+    nature = models.CharField(max_length=100)
+    
+    class Meta:
+        db_table = 'gst_business_nature'
+
+class GstBusinessDetail(models.Model):
+    gst_verification = models.ForeignKey(GstVerification, on_delete=models.CASCADE, related_name='business_details')
+    saccd = models.CharField(max_length=20)
+    sdes = models.TextField()
+    
+    class Meta:
+        db_table = 'gst_business_detail'
+
+class GstFilingStatus(models.Model):
+    gst_verification = models.ForeignKey(GstVerification, on_delete=models.CASCADE, related_name='filing_statuses')
+    fy = models.CharField(max_length=10)
+    taxp = models.CharField(max_length=20)
+    mof = models.CharField(max_length=20)
+    dof = models.CharField(max_length=20)
+    rtntype = models.CharField(max_length=10)
+    arn = models.CharField(max_length=50, blank=True)
+    status = models.CharField(max_length=20)
+    
+    class Meta:
+        db_table = 'gst_filing_status'
+
+class GstBusinessAddress(models.Model):
+    gst_verification = models.OneToOneField(GstVerification, on_delete=models.CASCADE, related_name='primary_address')
+    business_nature = models.TextField()
+    detailed_address = models.TextField(blank=True)
+    last_updated_date = models.CharField(max_length=20, blank=True)
+    registered_address = models.TextField()
+    
+    class Meta:
+        db_table = 'gst_business_address'

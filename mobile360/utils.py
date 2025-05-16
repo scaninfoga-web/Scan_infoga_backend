@@ -157,3 +157,106 @@ def fetch_uan_employment_data(uan_no):
             'success': False,
             'error': f"Unexpected error: {str(e)}"
         }
+
+
+##################### ESIC ##################
+def fetch_esic_data(mobile_number):
+    """
+    Fetch ESIC details data from external API
+    """
+    api_url = os.getenv('ESIC_API_URL')
+    api_key = os.getenv('ESIC_AUTH_KEY')
+    
+    headers = {
+        'authkey': api_key,
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'mobile': mobile_number,
+        "consent": "Y",
+        "consent_text": "We confirm obtaining valid customer consent to access/process their ESIC data. Consent remains valid, informed, and unwithdrawn."
+    }
+    
+    try:
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Transform the response to match the expected format
+        transformed_data = {
+            'txn_id': data.get('txn_id'),
+            'api_category': data.get('api_category'),
+            'api_name': data.get('api_name'),
+            'billable': data.get('billable'),
+            'message': data.get('message'),
+            'status': data.get('status'),
+            'datetime': data.get('datetime'),
+            'result': data.get('result', [])
+        }
+        
+        return {
+            'success': True,
+            'data': transformed_data
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'error': f"API request failed: {str(e)}"
+        }
+    except json.JSONDecodeError:
+        return {
+            'success': False,
+            'error': "Failed to parse API response"
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }
+
+
+def fetch_gst_data(gstin):
+    """
+    Fetch GST verification data from external API
+    """
+    api_url = os.getenv('GST_API_URL')
+    api_key = os.getenv('GST_AUTH_KEY')
+    
+    headers = {
+        'authkey': api_key,
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'gstin': gstin,
+        "consent": "Y",
+        "consent_text": "We confirm obtaining valid customer consent to access/process their GST data. Consent remains valid, informed, and unwithdrawn."
+    }
+    
+    try:
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        return {
+            'success': True,
+            'data': data
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'error': f"API request failed: {str(e)}"
+        }
+    except json.JSONDecodeError:
+        return {
+            'success': False,
+            'error': "Failed to parse API response"
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }

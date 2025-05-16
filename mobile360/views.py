@@ -6,9 +6,9 @@ from core.utils import create_response
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
-    MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights
+    MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights, UanEmploymentHistory, EsicDtls
 )
-from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data
+from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data
 
 @api_view(['POST'])
 def mobile_360_search(request):
@@ -435,44 +435,6 @@ def uan_employment_history_search(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check if data exists in database
-        existing_data = None
-        if not realtime_data:
-            try:
-                uan_history = UanHistoryLatestV2.objects.get(uan=uan_no)
-                # Construct response from database
-                existing_data = {
-                    "uan": uan_no,
-                    "txnId": str(uan_history.txn_id),
-                    "apiCategory": uan_history.api_category,
-                    "apiName": uan_history.api_name,
-                    "billable": uan_history.billable,
-                    "message": uan_history.message,
-                    "status": uan_history.status,
-                    "datetime": uan_history.datetime.isoformat(),
-                    "result": {
-                        "name": uan_history.name,
-                        "dob": uan_history.dob.isoformat(),
-                        "guardian_name": uan_history.guardian_name,
-                        "company_name": uan_history.company_name,
-                        "member_id": uan_history.member_id,
-                        "date_of_joining": uan_history.date_of_joining.isoformat(),
-                        "last_pf_submitted": uan_history.last_pf_submitted.isoformat()
-                    }
-                }
-            except UanHistoryLatestV2.DoesNotExist:
-                pass
-
-        if existing_data and not realtime_data:
-            return Response(
-                create_response(
-                    status=True,
-                    message='Data retrieved from database',
-                    data=existing_data
-                ), 
-                status=status.HTTP_200_OK
-            )
-
         # Call external API
         api_response = fetch_uan_employment_data(uan_no)
         
@@ -490,23 +452,18 @@ def uan_employment_history_search(request):
         api_data = api_response['data']
         
         # Save to database
-        uan_history = UanHistoryLatestV2.objects.create(
-            uan=uan_no,
-            txn_id=api_data['txn_id'],
-            api_category=api_data['api_category'],
-            api_name=api_data['api_name'],
-            billable=api_data['billable'],
-            message=api_data['message'],
-            status=api_data['status'],
-            datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime'],
+        uan_history = UanEmploymentHistory.objects.create(
             name=api_data['result']['name'],
-            dob=api_data['result']['dob'],
-            guardian_name=api_data['result']['guardian_name'],
-            company_name=api_data['result']['company_name'],
-            member_id=api_data['result']['member_id'],
-            date_of_joining=api_data['result']['date_of_joining'],
-            last_pf_submitted=api_data['result']['last_pf_submitted']
+            dob=api_data['result']['dob']
         )
+
+        # Save company history
+        for company_data in api_data['result']['employment_history']:
+            CompanyHistory.objects.create(
+                uan_history=uan_history,
+                company_name=company_data.get('company_name', ''),
+                company_address=company_data.get('company_address', '')
+            )
 
         # Format response for client
         response_data = {
@@ -518,7 +475,351 @@ def uan_employment_history_search(request):
             "message": api_data['message'],
             "status": api_data['status'],
             "datetime": api_data['datetime'],
+            "result": {
+                "name": uan_history.name,
+                "dob": uan_history.dob,
+                "employment_history": [
+                    {
+                        "company_name": history.company_name,
+                        "company_address": history.company_address
+                    }
+                    for history in uan_history.employment_history.all()
+                ]
+            }
+        }
+
+        return Response(
+            create_response(
+                status=True,
+                message='Data retrieved from API and saved successfully',
+                data=response_data
+            ), 
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message=str(e),
+                data=None
+            ), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+def esic_details_search(request):
+    try:
+        mobile_number = request.data.get('mobileNumber')
+        realtime_data = request.data.get('realtimeData', False)
+
+        if not mobile_number:
+            return Response(
+                create_response(
+                    status=False,
+                    message='Mobile number is required',
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if data exists in database
+        existing_data = None
+        if not realtime_data:
+            try:
+                esic_details = EsicDtls.objects.filter(mobile=mobile_number)
+                if esic_details.exists():
+                    # Construct response from database
+                    existing_data = {
+                        "mobileNumber": mobile_number,
+                        "result": [
+                            {
+                                "esic_number": detail.esic_number,
+                                "name": detail.name,
+                                "employer_code": detail.employer_code,
+                                "employer_name": detail.employer_name,
+                                "uan_number": detail.uan_number,
+                                "bank_details": {
+                                    "bank_name": detail.bank_name,
+                                    "branch_name": detail.branch_name,
+                                    "bank_account_status": detail.bank_account_status
+                                }
+                            } for detail in esic_details
+                        ]
+                    }
+            except Exception as e:
+                pass
+
+        if existing_data and not realtime_data:
+            return Response(
+                create_response(
+                    status=True,
+                    message='Data retrieved from database',
+                    data=existing_data
+                ), 
+                status=status.HTTP_200_OK
+            )
+
+        # If no existing data or realtime_data is True, call external API
+        api_response = fetch_esic_data(mobile_number)
+        
+        if not api_response['success']:
+            return Response(
+                create_response(
+                    status=False,
+                    message=api_response['error'],
+                    data=None
+                ),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Get the API response data
+        api_data = api_response['data']
+        
+        # Save to database
+        esic_details = []
+        for esic_record in api_data['result']:
+            esic_detail = EsicDtls.objects.create(
+                esic_number=esic_record.get('esic_number', ''),
+                name=esic_record.get('name', ''),
+                employer_code=esic_record.get('employer_code', ''),
+                employer_name=esic_record.get('employer_name', ''),
+                mobile=mobile_number,
+                uan_number=esic_record.get('uan_number', ''),
+                bank_name=esic_record.get('bank_details', {}).get('bank_name', ''),
+                branch_name=esic_record.get('bank_details', {}).get('branch_name', ''),
+                bank_account_status=esic_record.get('bank_details', {}).get('bank_account_status', '')
+            )
+            esic_details.append(esic_detail)
+
+        # Format response for client
+        response_data = {
+            "mobileNumber": mobile_number,
+            "txnId": api_data.get('txn_id', ''),
+            "apiCategory": api_data.get('api_category', ''),
+            "apiName": api_data.get('api_name', ''),
+            "billable": api_data.get('billable', True),
+            "message": api_data.get('message', ''),
+            "status": api_data.get('status', 200),
+            "datetime": api_data.get('datetime', datetime.now().isoformat()),
             "result": api_data['result']
+        }
+
+        return Response(
+            create_response(
+                status=True,
+                message='Data retrieved from API and saved successfully',
+                data=response_data
+            ), 
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message=str(e),
+                data=None
+            ), 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+def gst_verification(request):
+    try:
+        gstin = request.data.get('gstin')
+        realtime_data = request.data.get('realtimeData', False)
+
+        if not gstin:
+            return Response(
+                create_response(
+                    status=False,
+                    message='GSTIN is required',
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if data exists in database
+        existing_data = None
+        if not realtime_data:
+            try:
+                gst_verification = GstVerification.objects.get(gstin=gstin)
+                
+                # Construct response from database
+                existing_data = {
+                    "gstin": gstin,
+                    "txnId": request.data.get('txnId', ''),
+                    "apiCategory": "KYB",
+                    "apiName": "GST Verification (Advance)",
+                    "billable": True,
+                    "message": "Success",
+                    "status": 1,
+                    "result": {
+                        "aggregate_turn_over": gst_verification.aggregate_turn_over,
+                        "authorized_signatory": [
+                            signatory.name for signatory in gst_verification.authorized_signatories.all()
+                        ],
+                        "business_constitution": gst_verification.business_constitution,
+                        "business_details": [
+                            {
+                                "saccd": detail.saccd,
+                                "sdes": detail.sdes
+                            } for detail in gst_verification.business_details.all()
+                        ],
+                        "business_nature": [
+                            nature.nature for nature in gst_verification.business_natures.all()
+                        ],
+                        "can_flag": gst_verification.can_flag,
+                        "central_jurisdiction": gst_verification.central_jurisdiction,
+                        "compliance_rating": gst_verification.compliance_rating,
+                        "current_registration_status": gst_verification.current_registration_status,
+                        "filing_status": [
+                            [
+                                {
+                                    "fy": status_item.fy,
+                                    "taxp": status_item.taxp,
+                                    "mof": status_item.mof,
+                                    "dof": status_item.dof,
+                                    "rtntype": status_item.rtntype,
+                                    "arn": status_item.arn,
+                                    "status": status_item.status
+                                } for status_item in gst_verification.filing_statuses.all()
+                            ]
+                        ],
+                        "gstin": gst_verification.gstin,
+                        "is_field_visit_conducted": gst_verification.is_field_visit_conducted,
+                        "legal_name": gst_verification.legal_name,
+                        "mandate_e_invoice": gst_verification.mandate_e_invoice,
+                        "primary_business_address": {
+                            "business_nature": gst_verification.primary_address.business_nature,
+                            "detailed_address": gst_verification.primary_address.detailed_address,
+                            "last_updated_date": gst_verification.primary_address.last_updated_date,
+                            "registered_address": gst_verification.primary_address.registered_address
+                        } if hasattr(gst_verification, 'primary_address') else {},
+                        "register_cancellation_date": gst_verification.register_cancellation_date,
+                        "register_date": gst_verification.register_date,
+                        "state_jurisdiction": gst_verification.state_jurisdiction,
+                        "tax_payer_type": gst_verification.tax_payer_type,
+                        "trade_name": gst_verification.trade_name,
+                        "gross_total_income": gst_verification.gross_total_income,
+                        "gross_total_income_financial_year": gst_verification.gross_total_income_financial_year,
+                        "business_email": gst_verification.business_email,
+                        "business_mobile": gst_verification.business_mobile
+                    }
+                }
+                
+                return Response(
+                    create_response(
+                        status=True,
+                        message='Data retrieved from database',
+                        data=existing_data
+                    ), 
+                    status=status.HTTP_200_OK
+                )
+                
+            except GstVerification.DoesNotExist:
+                pass
+
+        # If no existing data or realtime_data is True, call external API
+        api_response = fetch_gst_data(gstin)
+        
+        if not api_response['success']:
+            return Response(
+                create_response(
+                    status=False,
+                    message=api_response['error'],
+                    data=None
+                ),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Get the API response data
+        api_data = api_response['data']
+        result = api_data.get('result', {})
+        
+        # Save to database
+        gst_verification = GstVerification.objects.create(
+            gstin=gstin,
+            aggregate_turn_over=result.get('aggregate_turn_over', ''),
+            business_constitution=result.get('business_constitution', ''),
+            can_flag=result.get('can_flag', ''),
+            central_jurisdiction=result.get('central_jurisdiction', ''),
+            compliance_rating=result.get('compliance_rating', ''),
+            current_registration_status=result.get('current_registration_status', ''),
+            is_field_visit_conducted=result.get('is_field_visit_conducted', ''),
+            legal_name=result.get('legal_name', ''),
+            mandate_e_invoice=result.get('mandate_e_invoice', ''),
+            register_cancellation_date=result.get('register_cancellation_date', ''),
+            register_date=result.get('register_date', ''),
+            state_jurisdiction=result.get('state_jurisdiction', ''),
+            tax_payer_type=result.get('tax_payer_type', ''),
+            trade_name=result.get('trade_name', ''),
+            gross_total_income=result.get('gross_total_income', ''),
+            gross_total_income_financial_year=result.get('gross_total_income_financial_year', ''),
+            business_email=result.get('business_email', ''),
+            business_mobile=result.get('business_mobile', '')
+        )
+        
+        # Save authorized signatories
+        for signatory_name in result.get('authorized_signatory', []):
+            GstAuthorizedSignatory.objects.create(
+                gst_verification=gst_verification,
+                name=signatory_name
+            )
+        
+        # Save business natures
+        for nature in result.get('business_nature', []):
+            GstBusinessNature.objects.create(
+                gst_verification=gst_verification,
+                nature=nature
+            )
+        
+        # Save business details
+        for detail in result.get('business_details', []):
+            GstBusinessDetail.objects.create(
+                gst_verification=gst_verification,
+                saccd=detail.get('saccd', ''),
+                sdes=detail.get('sdes', '')
+            )
+        
+        # Save filing status
+        for filing_group in result.get('filing_status', []):
+            for filing in filing_group:
+                GstFilingStatus.objects.create(
+                    gst_verification=gst_verification,
+                    fy=filing.get('fy', ''),
+                    taxp=filing.get('taxp', ''),
+                    mof=filing.get('mof', ''),
+                    dof=filing.get('dof', ''),
+                    rtntype=filing.get('rtntype', ''),
+                    arn=filing.get('arn', ''),
+                    status=filing.get('status', '')
+                )
+        
+        # Save primary business address
+        primary_address = result.get('primary_business_address', {})
+        if primary_address:
+            GstBusinessAddress.objects.create(
+                gst_verification=gst_verification,
+                business_nature=primary_address.get('business_nature', ''),
+                detailed_address=primary_address.get('detailed_address', ''),
+                last_updated_date=primary_address.get('last_updated_date', ''),
+                registered_address=primary_address.get('registered_address', '')
+            )
+        
+        # Format response for client
+        response_data = {
+            "gstin": gstin,
+            "txnId": api_data.get('txn_id', ''),
+            "apiCategory": api_data.get('api_category', 'KYB'),
+            "apiName": api_data.get('api_name', 'GST Verification (Advance)'),
+            "billable": api_data.get('billable', True),
+            "message": api_data.get('message', 'Success'),
+            "status": api_data.get('status', 1),
+            "result": result
         }
 
         return Response(
