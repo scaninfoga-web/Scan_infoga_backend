@@ -11,5 +11,5 @@ urlpatterns = [
     path('esicdtls', views.esic_details_search, name='esic_details_search'),
     path('gstturnover', views.gst_turnover, name='gst_turnover'),
     path('verifyudyam', views.udyam_details_search, name='udyam_details_search'),
-    path('mobiletoprofile', views.mobile_to_account_search, name='mobile_to_account_search'),
+    path('mobiletoaccount', views.mobile_to_account_search, name='mobile_to_account_search'),
 ]
