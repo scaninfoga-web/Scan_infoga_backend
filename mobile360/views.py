@@ -5,13 +5,18 @@ from datetime import datetime
 from core.utils import create_response
 import uuid
 from django.utils import timezone
+from django.db import transaction
 
 from .models import (
     Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
     MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights,
-    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls, GstTurnover
+    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls, GstTurnover,
+    UdyamDetails, UdyamAddress, UdyamEnterpriseType, UdyamNICCode, UdyamPlantDetail,
+    MobileToAccountDetails, AccountDetails, VpaDetails
 )
-from .utils import fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data, fetch_gst_data, fetch_gst_turnover_data
+from .utils import (
+    fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data, fetch_gst_data, fetch_gst_turnover_data, fetch_udyam_data, fetch_mobile_to_account_data
+)
 
 @api_view(['POST'])
 def mobile_360_search(request):
@@ -27,36 +32,40 @@ def mobile_360_search(request):
 
         # Check if data exists in database
         existing_data = None
-        if not realtime_data:
-            try:
-                mobile_360 = Mobile360.objects.get(mobile_number=mobile_number)
+        existing_mobile_360 = None
+        
+        try:
+            existing_mobile_360 = Mobile360.objects.get(mobile_number=mobile_number)
+            
+            # If not requesting realtime data, return existing data
+            if not realtime_data:
                 # Construct response from database
                 existing_data = {
                     "mobileNumber": mobile_number,
-                    "txnId": str(mobile_360.txn_id),
-                    "apiCategory": mobile_360.api_category,
-                    "apiName": mobile_360.api_name,
-                    "billable": mobile_360.billable,
-                    "message": mobile_360.message,
-                    "status": mobile_360.status,
-                    "datetime": mobile_360.datetime.isoformat(),
+                    "txnId": str(existing_mobile_360.txn_id),
+                    "apiCategory": existing_mobile_360.api_category,
+                    "apiName": existing_mobile_360.api_name,
+                    "billable": existing_mobile_360.billable,
+                    "message": existing_mobile_360.message,
+                    "status": existing_mobile_360.status,
+                    "datetime": existing_mobile_360.datetime.isoformat(),
                     "result": {
                         "digital_payment_id_info": {
-                            "code": mobile_360.digital_payment_info.code if hasattr(mobile_360, 'digital_payment_info') else "NRF",
+                            "code": existing_mobile_360.digital_payment_info.code if hasattr(existing_mobile_360, 'digital_payment_info') else "NRF",
                             "data": {
-                                "name": mobile_360.digital_payment_info.name,
-                                "bank": mobile_360.digital_payment_info.bank,
-                                "branch": mobile_360.digital_payment_info.branch,
-                                "center": mobile_360.digital_payment_info.center,
-                                "district": mobile_360.digital_payment_info.district,
-                                "state": mobile_360.digital_payment_info.state,
-                                "address": mobile_360.digital_payment_info.address,
-                                "contact": mobile_360.digital_payment_info.contact,
-                                "city": mobile_360.digital_payment_info.city
-                            } if hasattr(mobile_360, 'digital_payment_info') else {}
+                                "name": existing_mobile_360.digital_payment_info.name,
+                                "bank": existing_mobile_360.digital_payment_info.bank,
+                                "branch": existing_mobile_360.digital_payment_info.branch,
+                                "center": existing_mobile_360.digital_payment_info.center,
+                                "district": existing_mobile_360.digital_payment_info.district,
+                                "state": existing_mobile_360.digital_payment_info.state,
+                                "address": existing_mobile_360.digital_payment_info.address,
+                                "contact": existing_mobile_360.digital_payment_info.contact,
+                                "city": existing_mobile_360.digital_payment_info.city
+                            } if hasattr(existing_mobile_360, 'digital_payment_info') else {}
                         },
                         "lpg_info": {
-                            "code": "SUC" if mobile_360.lpg_info.exists() else "NRF",
+                            "code": "SUC" if existing_mobile_360.lpg_info.exists() else "NRF",
                             "data": [{
                                 "gas_provider": lpg.gas_provider,
                                 "name": lpg.name,
@@ -73,83 +82,80 @@ def mobile_360_search(request):
                                     "distributor_contact": lpg.distributor_contact,
                                     "distributor_address": lpg.distributor_address
                                 }
-                            } for lpg in mobile_360.lpg_info.all()]
+                            } for lpg in existing_mobile_360.lpg_info.all()]
                         },
                         "telco_info": {
-                            "code": mobile_360.telco_info.code if hasattr(mobile_360, 'telco_info') else "NRF",
+                            "code": existing_mobile_360.telco_info.code if hasattr(existing_mobile_360, 'telco_info') else "NRF",
                             "data": {
-                                "is_valid": mobile_360.telco_info.is_valid,
-                                "subscriber_status": mobile_360.telco_info.subscriber_status,
-                                "connection_type": mobile_360.telco_info.connection_type,
+                                "is_valid": existing_mobile_360.telco_info.is_valid,
+                                "subscriber_status": existing_mobile_360.telco_info.subscriber_status,
+                                "connection_type": existing_mobile_360.telco_info.connection_type,
                                 "msisdn": {
-                                    "msisdn": mobile_360.telco_info.msisdn,
-                                    "msisdn_country_code": mobile_360.telco_info.msisdn_country_code
+                                    "msisdn": existing_mobile_360.telco_info.msisdn,
+                                    "msisdn_country_code": existing_mobile_360.telco_info.msisdn_country_code
                                 },
                                 "current_service_provider": {
-                                    "network_name": mobile_360.telco_info.network_name,
-                                    "network_region": mobile_360.telco_info.network_region
+                                    "network_name": existing_mobile_360.telco_info.network_name,
+                                    "network_region": existing_mobile_360.telco_info.network_region
                                 },
-                                "is_roaming": mobile_360.telco_info.is_roaming
-                            } if hasattr(mobile_360, 'telco_info') else {}
+                                "is_roaming": existing_mobile_360.telco_info.is_roaming
+                            } if hasattr(existing_mobile_360, 'telco_info') else {}
                         },
                         "mobile_age_info": {
-                            "code": mobile_360.mobile_age_info.code if hasattr(mobile_360, 'mobile_age_info') else "NRF",
+                            "code": existing_mobile_360.mobile_age_info.code if hasattr(existing_mobile_360, 'mobile_age_info') else "NRF",
                             "data": {
-                                "is_ported": mobile_360.mobile_age_info.is_ported,
-                                "mobile_age": mobile_360.mobile_age_info.mobile_age,
-                                "number_active": mobile_360.mobile_age_info.number_active,
-                                "number_valid": mobile_360.mobile_age_info.number_valid,
-                                "ported_region": mobile_360.mobile_age_info.ported_region,
-                                "ported_telecom": mobile_360.mobile_age_info.ported_telecom,
-                                "region": mobile_360.mobile_age_info.region,
-                                "roaming": mobile_360.mobile_age_info.roaming,
-                                "telecom": mobile_360.mobile_age_info.telecom
-                            } if hasattr(mobile_360, 'mobile_age_info') else {}
+                                "is_ported": existing_mobile_360.mobile_age_info.is_ported,
+                                "mobile_age": existing_mobile_360.mobile_age_info.mobile_age,
+                                "number_active": existing_mobile_360.mobile_age_info.number_active,
+                                "number_valid": existing_mobile_360.mobile_age_info.number_valid,
+                                "ported_region": existing_mobile_360.mobile_age_info.ported_region,
+                                "ported_telecom": existing_mobile_360.mobile_age_info.ported_telecom,
+                                "region": existing_mobile_360.mobile_age_info.region,
+                                "roaming": existing_mobile_360.mobile_age_info.roaming,
+                                "telecom": existing_mobile_360.mobile_age_info.telecom
+                            } if hasattr(existing_mobile_360, 'mobile_age_info') else {}
                         },
                         "whatsapp_info": {
-                            "code": mobile_360.whatsapp_info.code if hasattr(mobile_360, 'whatsapp_info') else "NRF",
+                            "code": existing_mobile_360.whatsapp_info.code if hasattr(existing_mobile_360, 'whatsapp_info') else "NRF",
                             "data": {
-                                "status": mobile_360.whatsapp_info.status,
-                                "is_business": mobile_360.whatsapp_info.is_business
-                            } if hasattr(mobile_360, 'whatsapp_info') else {}
+                                "status": existing_mobile_360.whatsapp_info.status,
+                                "is_business": existing_mobile_360.whatsapp_info.is_business
+                            } if hasattr(existing_mobile_360, 'whatsapp_info') else {}
                         },
                         "revoke_info": {
-                            "code": mobile_360.revoke_info.code if hasattr(mobile_360, 'revoke_info') else "NRF",
+                            "code": existing_mobile_360.revoke_info.code if hasattr(existing_mobile_360, 'revoke_info') else "NRF",
                             "data": {
-                                "revoke_date": mobile_360.revoke_info.revoke_date,
-                                "revoke_status": mobile_360.revoke_info.revoke_status
-                            } if hasattr(mobile_360, 'revoke_info') else {}
+                                "revoke_date": existing_mobile_360.revoke_info.revoke_date,
+                                "revoke_status": existing_mobile_360.revoke_info.revoke_status
+                            } if hasattr(existing_mobile_360, 'revoke_info') else {}
                         },
                         "key_highlights": {
-                            "digital_payment_id_name": mobile_360.key_highlights.digital_payment_id_name if hasattr(mobile_360, 'key_highlights') else "",
-                            "gas_connection_found": mobile_360.key_highlights.gas_connection_found if hasattr(mobile_360, 'key_highlights') else "",
-                            "connection_type": mobile_360.key_highlights.connection_type if hasattr(mobile_360, 'key_highlights') else "",
-                            "whatsapp_business_account_status": mobile_360.key_highlights.whatsapp_business_account_status if hasattr(mobile_360, 'key_highlights') else "",
-                            "age_of_mobile": mobile_360.key_highlights.age_of_mobile if hasattr(mobile_360, 'key_highlights') else "",
-                            "active_status": mobile_360.key_highlights.active_status if hasattr(mobile_360, 'key_highlights') else "",
-                            "revoke_date": mobile_360.key_highlights.revoke_date if hasattr(mobile_360, 'key_highlights') else ""
+                            "digital_payment_id_name": existing_mobile_360.key_highlights.digital_payment_id_name if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "gas_connection_found": existing_mobile_360.key_highlights.gas_connection_found if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "connection_type": existing_mobile_360.key_highlights.connection_type if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "whatsapp_business_account_status": existing_mobile_360.key_highlights.whatsapp_business_account_status if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "age_of_mobile": existing_mobile_360.key_highlights.age_of_mobile if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "active_status": existing_mobile_360.key_highlights.active_status if hasattr(existing_mobile_360, 'key_highlights') else "",
+                            "revoke_date": existing_mobile_360.key_highlights.revoke_date if hasattr(existing_mobile_360, 'key_highlights') else ""
                         }
                     }
                 }
+                
+                return Response(
+                    create_response(
+                        status=True,
+                        message='Data retrieved from database',
+                        data=existing_data
+                    ), 
+                    status=status.HTTP_200_OK
+                )
+        except Mobile360.DoesNotExist:
+            existing_mobile_360 = None
 
-            except Mobile360.DoesNotExist:
-                pass
-
-        if existing_data and not realtime_data:
-            return Response(
-                create_response(
-                    status=True,
-                    message='Data retrieved from database',
-                    data=existing_data
-                ), 
-                status=status.HTTP_200_OK
-            )
-
-        # In mobile_360_search function, update the API response handling:
-        
-        # If no existing data or realtime_data is True, call external API
+        # Call external API if no existing data or realtime_data is True
         api_response = fetch_mobile360_data(mobile_number)
         
+        # Return early if the API call was unsuccessful
         if not api_response['success']:
             return Response(
                 create_response(
@@ -163,131 +169,190 @@ def mobile_360_search(request):
         # Get the API response data
         api_data = api_response['data']
         
-        # Save to database
-        mobile_360 = Mobile360.objects.create(
-            mobile_number=mobile_number,
-            txn_id=api_data['txnId'],
-            api_category=api_data['apiCategory'],
-            api_name=api_data['apiName'],
-            billable=api_data['billable'],
-            message=api_data['message'],
-            status=api_data['status'],
-            datetime=datetime.fromisoformat(api_data['datetime']) if isinstance(api_data['datetime'], str) else api_data['datetime']
-        )
-
-        # Save Digital Payment Info
-        if api_data['result']['digital_payment_id_info']['code'] == 'SUC':
-            payment_data = api_data['result']['digital_payment_id_info']['data']
-            DigitalPaymentInfo.objects.create(
-                mobile_response=mobile_360,
-                code=api_data['result']['digital_payment_id_info']['code'],
-                name=payment_data.get('name'),
-                bank=payment_data.get('bank'),
-                branch=payment_data.get('branch'),
-                center=payment_data.get('center', ''),
-                district=payment_data.get('district'),
-                state=payment_data.get('state'),
-                address=payment_data.get('address'),
-                contact=payment_data.get('contact', ''),
-                city=payment_data.get('city')
+        # Additional check to ensure the status is 1 (success)
+        if api_data['status'] != 1:
+            return Response(
+                create_response(
+                    status=False,
+                    message=f"API returned non-success status: {api_data['status']} - {api_data['message']}",
+                    data=None
+                ),
+                status=status.HTTP_400_BAD_REQUEST
             )
-
-        # Save LPG Info
-        if api_data['result'].get('lpg_info', {}).get('code') == 'SUC':
-            for lpg_data in api_data['result']['lpg_info']['data']:
-                LPGInfo.objects.create(
-                    mobile_response=mobile_360,
-                    code=api_data['result']['lpg_info']['code'],
-                    gas_provider=lpg_data.get('gas_provider'),
-                    name=lpg_data.get('name'),
-                    consumer_mobile=lpg_data.get('consumer_details', {}).get('consumer_mobile'),
-                    consumer_id=lpg_data.get('consumer_details', {}).get('consumer_id'),
-                    consumer_status=lpg_data.get('consumer_details', {}).get('consumer_status'),
-                    consumer_type=lpg_data.get('consumer_details', {}).get('consumer_type'),
-                    address=lpg_data.get('address'),
-                    distributor_code=lpg_data.get('distributor_details', {}).get('distributor_code'),
-                    distributor_name=lpg_data.get('distributor_details', {}).get('distributor_name'),
-                    distributor_contact=lpg_data.get('distributor_details', {}).get('distributor_contact'),
-                    distributor_address=lpg_data.get('distributor_details', {}).get('distributor_address')
+        
+        # Transaction handling for database operations
+        with transaction.atomic():
+            # If record exists, update it instead of creating a new one
+            if existing_mobile_360:
+                # Update the main Mobile360 record
+                existing_mobile_360.txn_id = api_data.get('txnId')
+                existing_mobile_360.api_category = api_data.get('apiCategory', '')
+                existing_mobile_360.api_name = api_data.get('apiName', '')
+                existing_mobile_360.billable = api_data.get('billable', False)
+                existing_mobile_360.message = api_data.get('message', '')
+                existing_mobile_360.status = api_data.get('status', 0)
+                existing_mobile_360.datetime = datetime.fromisoformat(api_data.get('datetime')) if isinstance(api_data.get('datetime'), str) else api_data.get('datetime', datetime.now())
+                existing_mobile_360.save()
+                
+                mobile_360 = existing_mobile_360
+                
+                # Delete existing related records to avoid duplicates
+                if hasattr(mobile_360, 'digital_payment_info'):
+                    mobile_360.digital_payment_info.delete()
+                
+                mobile_360.lpg_info.all().delete()
+                
+                if hasattr(mobile_360, 'telco_info'):
+                    mobile_360.telco_info.delete()
+                
+                if hasattr(mobile_360, 'mobile_age_info'):
+                    mobile_360.mobile_age_info.delete()
+                
+                if hasattr(mobile_360, 'whatsapp_info'):
+                    mobile_360.whatsapp_info.delete()
+                
+                if hasattr(mobile_360, 'revoke_info'):
+                    mobile_360.revoke_info.delete()
+                
+                if hasattr(mobile_360, 'key_highlights'):
+                    mobile_360.key_highlights.delete()
+            else:
+                # Create new Mobile360 record if it doesn't exist
+                mobile_360 = Mobile360.objects.create(
+                    mobile_number=mobile_number,
+                    txn_id=api_data.get('txnId'),
+                    api_category=api_data.get('apiCategory', ''),
+                    api_name=api_data.get('apiName', ''),
+                    billable=api_data.get('billable', False),
+                    message=api_data.get('message', ''),
+                    status=api_data.get('status', 0),
+                    datetime=datetime.fromisoformat(api_data.get('datetime')) if isinstance(api_data.get('datetime'), str) else api_data.get('datetime', datetime.now())
                 )
 
-        # Save Telco Info
-        if api_data['result'].get('telco_info', {}).get('code') == 'SUC':
-            telco_data = api_data['result']['telco_info']['data']
-            TelcoInfo.objects.create(
-                mobile_response=mobile_360,
-                code=api_data['result']['telco_info']['code'],
-                is_valid=telco_data.get('is_valid'),
-                subscriber_status=telco_data.get('subscriber_status'),
-                connection_type=telco_data.get('connection_type'),
-                msisdn=telco_data.get('msisdn', {}).get('msisdn'),
-                msisdn_country_code=telco_data.get('msisdn', {}).get('msisdn_country_code'),
-                network_name=telco_data.get('current_service_provider', {}).get('network_name'),
-                network_region=telco_data.get('current_service_provider', {}).get('network_region'),
-                is_roaming=telco_data.get('is_roaming')
-            )
+            # Save Digital Payment Info if available with SUC code
+            if api_data.get('result', {}).get('digital_payment_id_info', {}).get('code') == 'SUC':
+                payment_data = api_data['result']['digital_payment_id_info'].get('data', {})
+                DigitalPaymentInfo.objects.create(
+                    mobile_response=mobile_360,
+                    code=api_data['result']['digital_payment_id_info'].get('code', 'NRF'),
+                    name=payment_data.get('name', ''),
+                    bank=payment_data.get('bank', ''),
+                    branch=payment_data.get('branch', ''),
+                    center=payment_data.get('center', ''),
+                    district=payment_data.get('district', ''),
+                    state=payment_data.get('state', ''),
+                    address=payment_data.get('address', ''),
+                    contact=payment_data.get('contact', ''),
+                    city=payment_data.get('city', '')
+                )
 
-        # Save Mobile Age Info
-        if api_data['result'].get('mobile_age_info', {}).get('code') == 'SUC':
-            age_data = api_data['result']['mobile_age_info']['data']
-            MobileAgeInfo.objects.create(
-                mobile_response=mobile_360,
-                code=api_data['result']['mobile_age_info']['code'],
-                is_ported=age_data.get('is_ported'),
-                mobile_age=age_data.get('mobile_age'),
-                number_active=age_data.get('number_active'),
-                number_valid=age_data.get('number_valid'),
-                ported_region=age_data.get('ported_region', ''),
-                ported_telecom=age_data.get('ported_telecom', ''),
-                region=age_data.get('region'),
-                roaming=age_data.get('roaming'),
-                telecom=age_data.get('telecom')
-            )
+            # Save LPG Info if available with SUC code
+            if api_data.get('result', {}).get('lpg_info', {}).get('code') == 'SUC':
+                lpg_list = api_data['result']['lpg_info'].get('data', [])
+                for lpg_data in lpg_list:
+                    consumer_details = lpg_data.get('consumer_details', {})
+                    distributor_details = lpg_data.get('distributor_details', {})
+                    
+                    LPGInfo.objects.create(
+                        mobile_response=mobile_360,
+                        code=api_data['result']['lpg_info'].get('code', 'NRF'),
+                        gas_provider=lpg_data.get('gas_provider', ''),
+                        name=lpg_data.get('name', ''),
+                        consumer_mobile=consumer_details.get('consumer_mobile', ''),
+                        consumer_id=consumer_details.get('consumer_id', ''),
+                        consumer_status=consumer_details.get('consumer_status', ''),
+                        consumer_type=consumer_details.get('consumer_type', ''),
+                        address=lpg_data.get('address', ''),
+                        distributor_code=distributor_details.get('distributor_code', ''),
+                        distributor_name=distributor_details.get('distributor_name', ''),
+                        distributor_contact=distributor_details.get('distributor_contact', ''),
+                        distributor_address=distributor_details.get('distributor_address', '')
+                    )
 
-        # Save WhatsApp Info
-        if api_data['result'].get('whatsapp_info', {}).get('code') == 'SUC':
-            whatsapp_data = api_data['result']['whatsapp_info']['data']
-            WhatsappInfo.objects.create(
-                mobile_response=mobile_360,
-                code=api_data['result']['whatsapp_info']['code'],
-                status=whatsapp_data.get('status'),
-                is_business=whatsapp_data.get('is_business')
-            )
+            # Save Telco Info if available with SUC code
+            if api_data.get('result', {}).get('telco_info', {}).get('code') == 'SUC':
+                telco_data = api_data['result']['telco_info'].get('data', {})
+                msisdn_data = telco_data.get('msisdn', {})
+                service_provider = telco_data.get('current_service_provider', {})
+                
+                TelcoInfo.objects.create(
+                    mobile_response=mobile_360,
+                    code=api_data['result']['telco_info'].get('code', 'NRF'),
+                    is_valid=telco_data.get('is_valid', False),
+                    subscriber_status=telco_data.get('subscriber_status', ''),
+                    connection_type=telco_data.get('connection_type', ''),
+                    msisdn=msisdn_data.get('msisdn', ''),
+                    msisdn_country_code=msisdn_data.get('msisdn_country_code', ''),
+                    network_name=service_provider.get('network_name', ''),
+                    network_region=service_provider.get('network_region', ''),
+                    is_roaming=telco_data.get('is_roaming', False)
+                )
 
-        # Save Revoke Info
-        if api_data['result'].get('revoke_info', {}).get('code') == 'SUC':
-            revoke_data = api_data['result']['revoke_info']['data']
-            RevokeInfo.objects.create(
-                mobile_response=mobile_360,
-                code=api_data['result']['revoke_info']['code'],
-                revoke_date=revoke_data.get('revoke_date', ''),
-                revoke_status=revoke_data.get('revoke_status')
-            )
+            # Save Mobile Age Info if available with SUC code
+            if api_data.get('result', {}).get('mobile_age_info', {}).get('code') == 'SUC':
+                age_data = api_data['result']['mobile_age_info'].get('data', {})
+                
+                MobileAgeInfo.objects.create(
+                    mobile_response=mobile_360,
+                    code=api_data['result']['mobile_age_info'].get('code', 'NRF'),
+                    is_ported=age_data.get('is_ported', ''),
+                    mobile_age=age_data.get('mobile_age', ''),
+                    number_active=age_data.get('number_active', ''),
+                    number_valid=age_data.get('number_valid', ''),
+                    ported_region=age_data.get('ported_region', ''),
+                    ported_telecom=age_data.get('ported_telecom', ''),
+                    region=age_data.get('region', ''),
+                    roaming=age_data.get('roaming', ''),
+                    telecom=age_data.get('telecom', '')
+                )
 
-        # Save Key Highlights
-        highlights = api_data['result'].get('key_highlights', {})
-        KeyHighlights.objects.create(
-            mobile_response=mobile_360,
-            digital_payment_id_name=highlights.get('digital_payment_id_name', ''),
-            gas_connection_found=highlights.get('gas_connection_found', ''),
-            connection_type=highlights.get('connection_type', ''),
-            whatsapp_business_account_status=highlights.get('whatsapp_business_account_status', ''),
-            age_of_mobile=highlights.get('age_of_mobile', ''),
-            active_status=highlights.get('active_status', ''),
-            revoke_date=highlights.get('revoke_date', '')
-        )
+            # Save WhatsApp Info if available with SUC code
+            if api_data.get('result', {}).get('whatsapp_info', {}).get('code') == 'SUC':
+                whatsapp_data = api_data['result']['whatsapp_info'].get('data', {})
+                
+                WhatsappInfo.objects.create(
+                    mobile_response=mobile_360,
+                    code=api_data['result']['whatsapp_info'].get('code', 'NRF'),
+                    status=whatsapp_data.get('status', ''),
+                    is_business=whatsapp_data.get('is_business', '')
+                )
+
+            # Save Revoke Info if available with SUC code
+            if api_data.get('result', {}).get('revoke_info', {}).get('code') == 'SUC':
+                revoke_data = api_data['result']['revoke_info'].get('data', {})
+                
+                RevokeInfo.objects.create(
+                    mobile_response=mobile_360,
+                    code=api_data['result']['revoke_info'].get('code', 'NRF'),
+                    revoke_date=revoke_data.get('revoke_date', ''),
+                    revoke_status=revoke_data.get('revoke_status', '')
+                )
+
+            # Save Key Highlights
+            highlights = api_data.get('result', {}).get('key_highlights', {})
+            
+            KeyHighlights.objects.create(
+                mobile_response=mobile_360,
+                digital_payment_id_name=highlights.get('digital_payment_id_name', ''),
+                gas_connection_found=highlights.get('gas_connection_found', ''),
+                connection_type=highlights.get('connection_type', ''),
+                whatsapp_business_account_status=highlights.get('whatsapp_business_account_status', ''),
+                age_of_mobile=highlights.get('age_of_mobile', ''),
+                active_status=highlights.get('active_status', ''),
+                revoke_date=highlights.get('revoke_date', '')
+            )
 
         # Format response for client
         response_data = {
             "mobileNumber": mobile_number,
-            "txnId": api_data['txn_id'],
-            "apiCategory": api_data['api_category'],
-            "apiName": api_data['api_name'],
-            "billable": api_data['billable'],
-            "message": api_data['message'],
-            "status": api_data['status'],
-            "datetime": api_data['datetime'],
-            "result": api_data['result']
+            "txnId": api_data.get('txnId'),
+            "apiCategory": api_data.get('apiCategory'),
+            "apiName": api_data.get('apiName'),
+            "billable": api_data.get('billable'),
+            "message": api_data.get('message'),
+            "status": api_data.get('status'),
+            "datetime": api_data.get('datetime'),
+            "result": api_data.get('result', {})
         }
 
         return Response(
@@ -303,7 +368,7 @@ def mobile_360_search(request):
         return Response(
             create_response(
                 status=False,
-                message=str(e),
+                message=f"Error processing request: {str(e)}",
                 data=None
             ), 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1058,3 +1123,311 @@ def gst_turnover(request):
             ),
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['POST'])
+def udyam_details_search(request):
+    try:
+        udyam_number = request.data.get('registration_no')
+        realtime = request.data.get('realtimeData', False)
+
+        if not udyam_number:
+            return Response(create_response(False, 'Udyam number is required', None), status=status.HTTP_400_BAD_REQUEST)
+
+        # If not realtime, check DB first
+        if not realtime:
+            try:
+                existing = UdyamDetails.objects.filter(udyamnumber=udyam_number).first()
+                
+                if existing:
+                    return Response(create_response(True, 'Data retrieved from database', {
+                        'udyam_number': udyam_number,  # Use the input instead
+                        'enterprise_name': existing.enterprise_name,
+                        'organisation_type': existing.organisation_type,
+                        # Add more fields as needed
+                    }), status=status.HTTP_200_OK)
+            except Exception as db_err:
+                # Return error message instead of print
+                return Response(create_response(False, f"Database error: {str(db_err)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Realtime fetch
+        api_response = fetch_udyam_data(udyam_number)
+
+        if not api_response['success']:
+            return Response(create_response(False, api_response['error'], None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        data = api_response['data']
+
+        # If API returns Source Down or only header info, save only that
+        result = data.get('result')
+        if not result:
+            try:
+                # Try to create or update, but allow it to fail gracefully
+                # Skip the udyamnumber field for now if it's causing issues
+                obj, created = UdyamDetails.objects.update_or_create(
+                    # Use a different unique identifier temporarily
+                    txn_id=data['txn_id'],
+                    defaults={
+                        # Skip udyamnumber if causing issues
+                        # 'udyamnumber': udyam_number,
+                        'api_category': data['api_category'],
+                        'api_name': data['api_name'],
+                        'billable': data['billable'],
+                        'message': data['message'],
+                        'status': data['status'],
+                        'datetime': data['datetime'],
+                        'enterprise_name': '',
+                        'organisation_type': '',
+                        'service_type': '',
+                        'gender': '',
+                        'social_category': '',
+                        'date_of_incorporation': '1900-01-01',
+                        'date_of_commencement': '1900-01-01',
+                        'mobile': '',
+                        'email': '',
+                        'dic': '',
+                        'msme_dfo': '',
+                        'date_of_udyam_registeration': '1900-01-01',
+                    }
+                )
+            except Exception as e:
+                return Response(create_response(False, f"Failed to save metadata: {str(e)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+            return Response(create_response(True, 'Only metadata received (e.g. source down)', data), status=status.HTTP_200_OK)
+
+        # Clean fields for nested saving
+        address = result.pop('address', {})
+        plants = result.pop('plant_details', [])
+        types = result.pop('enterprise_type', [])
+        nics = result.pop('nic_code', [])
+
+        try:
+            # Try to delete if exists, but don't fail if it doesn't
+            UdyamDetails.objects.filter(txn_id=data['txn_id']).delete()  # Use txn_id as a temporary workaround
+        except Exception as e:
+            return Response(create_response(False, f"Error deleting old records: {str(e)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Prepare flat fields from result
+        field_data = {k: v for k, v in result.items() if hasattr(UdyamDetails, k)}
+
+        try:
+            # Create a new record with all fields except udyamnumber if that's causing issues
+            udyam = UdyamDetails(
+                # Skip udyamnumber if causing issues
+                # udyamnumber=udyam_number,
+                txn_id=data['txn_id'],
+                api_category=data['api_category'],
+                api_name=data['api_name'],
+                billable=data['billable'],
+                message=data['message'],
+                status=data['status'],
+                datetime=data['datetime'],
+                **field_data
+            )
+            udyam.save()
+            
+            # If you can add the udyamnumber after saving
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE udyam_details SET udyamnumber = %s WHERE id = %s", 
+                        [udyam_number, udyam.id]
+                    )
+            except Exception as e:
+                return Response(create_response(False, f"Failed to update udyamnumber: {str(e)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Save nested models
+            if address:
+                UdyamAddress.objects.create(udyam=udyam, **address)
+
+            for plant in plants:
+                UdyamPlantDetail.objects.create(udyam=udyam, **plant)
+
+            for et in types:
+                et['classification_date'] = datetime.strptime(et['classification_date'], '%d/%m/%Y').date()
+                UdyamEnterpriseType.objects.create(udyam=udyam, **et)
+
+            for nic in nics:
+                nic['date'] = datetime.strptime(nic['date'], '%d/%m/%Y').date()
+                UdyamNICCode.objects.create(udyam=udyam, **nic)
+                
+        except Exception as e:
+            # Return error message instead of print
+            return Response(create_response(False, f"Failed to save main data: {str(e)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(create_response(True, 'Realtime data retrieved and saved successfully', data), status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(create_response(False, str(e), None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(['POST'])
+def mobile_to_account_search(request):
+    try:
+        mobile = request.data.get('mobile')
+        realtime = request.data.get('realtimeData', False)
+
+        if not mobile:
+            return Response(create_response(False, 'Mobile number is required', None), status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if data exists in database
+        existing_record = None
+        
+        try:
+            existing_record = MobileToAccountDetails.objects.get(mobile=mobile)
+            
+            # If not requesting realtime data, return existing data
+            if not realtime:
+                # Format the response to match the realtime data format
+                formatted_response = {
+                    "mobile": mobile,
+                    "txn_id": str(existing_record.txn_id),
+                    "api_category": existing_record.api_category,
+                    "api_name": existing_record.api_name,
+                    "billable": existing_record.billable,
+                    "message": existing_record.message,
+                    "status": existing_record.status,
+                    "datetime": existing_record.datetime.isoformat(),
+                    "result": {
+                        "account_details": {
+                            "account_ifsc": existing_record.account_details.account_ifsc,
+                            "account_number": existing_record.account_details.account_number,
+                            "amount_deposited": str(existing_record.account_details.amount_deposited)
+                        },
+                        "vpa_details": {
+                            "account_holder_name": existing_record.vpa_details.account_holder_name,
+                            "vpa": existing_record.vpa_details.vpa
+                        }
+                    }
+                }
+                
+                return Response(create_response(True, 'Data from database', formatted_response), status=status.HTTP_200_OK)
+        except MobileToAccountDetails.DoesNotExist:
+            existing_record = None
+
+        # Call external API if no existing data or realtime_data is True
+        api_response = fetch_mobile_to_account_data(mobile)
+        if not api_response['success']:
+            return Response(create_response(False, api_response['error'], None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        data = api_response['data']
+        
+        # Validate that the required fields exist in the API response
+        if 'result' not in data:
+            return Response(create_response(False, 'Invalid API response: missing result field', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        result = data.get('result', {})
+        
+        # Check if account_details and vpa_details exist
+        if 'account_details' not in result or 'vpa_details' not in result:
+            return Response(create_response(False, 'Invalid API response: missing account or VPA details', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        acc = result.get('account_details', {})
+        vpa = result.get('vpa_details', {})
+        
+        # Validate required fields for database creation
+        required_fields = ['txn_id', 'api_category', 'api_name', 'billable', 'message', 'status', 'datetime']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            return Response(create_response(False, f'Invalid API response: missing fields {missing_fields}', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Transaction handling for database operations
+        with transaction.atomic():
+            # If record exists, update it instead of creating a new one
+            if existing_record:
+                # Update the main MobileToAccountDetails record
+                existing_record.txn_id = data.get('txn_id')
+                existing_record.api_category = data.get('api_category', '')
+                existing_record.api_name = data.get('api_name', '')
+                existing_record.billable = data.get('billable', False)
+                existing_record.message = data.get('message', '')
+                existing_record.status = data.get('status', 0)
+                existing_record.datetime = data.get('datetime')
+                existing_record.save()
+                
+                record = existing_record
+                
+                # Update related records
+                # Validate required fields for AccountDetails
+                required_acc_fields = ['account_ifsc', 'account_number', 'amount_deposited']
+                missing_acc_fields = [field for field in required_acc_fields if field not in acc]
+                
+                if missing_acc_fields:
+                    return Response(create_response(False, f'Invalid API response: missing account fields {missing_acc_fields}', None), 
+                                  status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # Update AccountDetails
+                account_details = record.account_details
+                account_details.account_ifsc = acc['account_ifsc']
+                account_details.account_number = acc['account_number']
+                account_details.amount_deposited = acc['amount_deposited']
+                account_details.save()
+                
+                # Validate required fields for VpaDetails
+                required_vpa_fields = ['account_holder_name', 'vpa']
+                missing_vpa_fields = [field for field in required_vpa_fields if field not in vpa]
+                
+                if missing_vpa_fields:
+                    return Response(create_response(False, f'Invalid API response: missing VPA fields {missing_vpa_fields}', None), 
+                                  status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # Update VpaDetails
+                vpa_details = record.vpa_details
+                vpa_details.account_holder_name = vpa['account_holder_name']
+                vpa_details.vpa = vpa['vpa']
+                vpa_details.save()
+            else:
+                # Create new record if it doesn't exist
+                record = MobileToAccountDetails.objects.create(
+                    txn_id=data['txn_id'],
+                    api_category=data['api_category'],
+                    api_name=data['api_name'],
+                    billable=data['billable'],
+                    message=data['message'],
+                    status=data['status'],
+                    datetime=data['datetime'],
+                    mobile=mobile
+                )
+                
+                # Validate required fields for AccountDetails
+                required_acc_fields = ['account_ifsc', 'account_number', 'amount_deposited']
+                missing_acc_fields = [field for field in required_acc_fields if field not in acc]
+                
+                if missing_acc_fields:
+                    # Clean up the record we just created since we can't complete the process
+                    record.delete()
+                    return Response(create_response(False, f'Invalid API response: missing account fields {missing_acc_fields}', None), 
+                                  status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                AccountDetails.objects.create(
+                    record=record,
+                    account_ifsc=acc['account_ifsc'],
+                    account_number=acc['account_number'],
+                    amount_deposited=acc['amount_deposited'],
+                )
+                
+                # Validate required fields for VpaDetails
+                required_vpa_fields = ['account_holder_name', 'vpa']
+                missing_vpa_fields = [field for field in required_vpa_fields if field not in vpa]
+                
+                if missing_vpa_fields:
+                    # Clean up the records we just created since we can't complete the process
+                    record.delete()  # This will cascade delete the AccountDetails too
+                    return Response(create_response(False, f'Invalid API response: missing VPA fields {missing_vpa_fields}', None), 
+                                  status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                VpaDetails.objects.create(
+                    record=record,
+                    account_holder_name=vpa['account_holder_name'],
+                    vpa=vpa['vpa'],
+                )
+
+        # Return the API response directly to maintain the same format
+        return Response(create_response(True, 'Data retrieved and saved successfully', data), status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(create_response(False, f'Error processing request: {str(e)}', None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    

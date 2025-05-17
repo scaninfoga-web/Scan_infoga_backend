@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from datetime import datetime  # Add this import
+from datetime import datetime
 from dotenv import load_dotenv
 from .transform import transform_api_response, prepare_client_response
 
@@ -52,7 +52,6 @@ def fetch_mobile360_data(mobile_number):
             'success': False,
             'error': f"Unexpected error: {str(e)}"
         }
-
 
 ######################### UAN HISTORY ################
 def fetch_uan_history_data(uan_no):
@@ -120,7 +119,7 @@ def fetch_uan_history_data(uan_no):
             'error': f"Unexpected error: {str(e)}"
         }
 
-
+################### UAN Employment History ###################
 def fetch_uan_employment_data(uan_no):
     """
     Fetch UAN employment history data from external API
@@ -217,8 +216,6 @@ def fetch_esic_data(mobile_number):
             'datetime': data.get('datetime'),
             'result': data.get('result', [])
         }
-        print("TD")
-        print(transformed_data)  # Add this line for debugging
         
         return {
             'success': True,
@@ -329,3 +326,92 @@ def fetch_gst_turnover_data(gstin, year):
             'success': False,
             'error': f"Unexpected error: {str(e)}"
         }
+        
+################### Verify Udyam ###################
+def fetch_udyam_data(udyam_number):
+    """
+    Fetch Udyam data from external API
+    """
+    api_url = os.getenv('UDYAM_API_URL')
+    api_key = os.getenv('UDYAM_AUTH_KEY')
+
+    headers = {
+        'authkey': api_key,
+        'Content-Type': 'application/json'
+    }
+
+    payload = {
+        'registration_no': udyam_number,
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()
+
+        data = response.json()
+        return {
+            'success': True,
+            'data': data
+        }
+
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'error': f"API request failed: {str(e)}"
+        }
+    except json.JSONDecodeError:
+        return {
+            'success': False,
+            'error': "Failed to parse API response"
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }
+
+################### Mobile to Account ###################
+def fetch_mobile_to_account_data(mobile_number):
+    """
+    Fetch Mobile to Account data from external API
+    """
+    api_url = os.getenv('MOBILE_TO_ACCOUNT_API_URL')
+    api_key = os.getenv('MOBILE_TO_ACCOUNT_AUTH_KEY')
+
+    headers = {
+        'authkey': api_key,
+        'Content-Type': 'application/json'
+    }
+
+    payload = {
+        'mobile': mobile_number,
+        "consent" :"Y",
+        "consent_text":"We confirm obtaining valid customer consent to access/process their mobile data. Consent remains valid, informed, and unwithdrawn."
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()
+
+        data = response.json()
+        return {
+            'success': True,
+            'data': data
+        }
+
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'error': f"API request failed: {str(e)}"
+        }
+    except json.JSONDecodeError:
+        return {
+            'success': False,
+            'error': "Failed to parse API response"
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }
+        

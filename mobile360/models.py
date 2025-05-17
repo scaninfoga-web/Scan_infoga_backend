@@ -280,8 +280,6 @@ class GstTurnover(models.Model):
     class Meta:
         db_table = 'gst_turnover'
 
-
-
 class GstTurnoverAuthorizedSignatory(models.Model):
     gst_turnover = models.ForeignKey(GstTurnover, on_delete=models.CASCADE, related_name='authorized_signatories')
     name = models.CharField(max_length=255)
@@ -289,10 +287,101 @@ class GstTurnoverAuthorizedSignatory(models.Model):
     class Meta:
         db_table = 'gst_turnover_authorized_signatory'
 
-
 class GstTurnoverBusinessNature(models.Model):
     gst_turnover = models.ForeignKey(GstTurnover, on_delete=models.CASCADE, related_name='business_natures')
     nature = models.CharField(max_length=100)
 
     class Meta:
         db_table = 'gst_turnover_business_nature'
+        
+################### Verify Udyam ###################
+class UdyamDetails(models.Model):
+    udyamnumber = models.CharField(max_length=50, db_column='registration_no')
+    txn_id = models.CharField(max_length=100)
+    api_category = models.CharField(max_length=100)
+    api_name = models.CharField(max_length=100)
+    billable = models.BooleanField()
+    message = models.CharField(max_length=255)
+    status = models.IntegerField()
+    datetime = models.DateTimeField()
+
+    enterprise_name = models.CharField(max_length=255)
+    organisation_type = models.CharField(max_length=100)
+    service_type = models.CharField(max_length=100)
+    gender = models.CharField(max_length=20)
+    social_category = models.CharField(max_length=50)
+    date_of_incorporation = models.DateField()
+    date_of_commencement = models.DateField()
+    mobile = models.CharField(max_length=20)
+    email = models.EmailField()
+    dic = models.CharField(max_length=100)
+    msme_dfo = models.CharField(max_length=100)
+    date_of_udyam_registeration = models.DateField()
+
+    class Meta:
+        db_table = 'udyam_details'
+
+class UdyamAddress(models.Model):
+    udyam = models.OneToOneField(UdyamDetails, on_delete=models.CASCADE, related_name='address')
+    flat_no = models.CharField(max_length=100)
+    building = models.CharField(max_length=255)
+    village = models.CharField(max_length=100)
+    block = models.CharField(max_length=100)
+    street = models.CharField(max_length=100)
+    district = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pin = models.CharField(max_length=10)
+
+class UdyamPlantDetail(models.Model):
+    udyam = models.ForeignKey(UdyamDetails, on_delete=models.CASCADE, related_name='plant_details')
+    unit_name = models.CharField(max_length=255)
+    flat = models.CharField(max_length=100)
+    building = models.CharField(max_length=255)
+    village = models.CharField(max_length=100)
+    block = models.CharField(max_length=100)
+    road = models.CharField(max_length=255)
+    district = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pin = models.CharField(max_length=10)
+
+class UdyamEnterpriseType(models.Model):
+    udyam = models.ForeignKey(UdyamDetails, on_delete=models.CASCADE, related_name='enterprise_type')
+    classification_year = models.CharField(max_length=20)
+    enterprise_type = models.CharField(max_length=50)
+    classification_date = models.DateField()
+
+class UdyamNICCode(models.Model):
+    udyam = models.ForeignKey(UdyamDetails, on_delete=models.CASCADE, related_name='nic_code')
+    nic_2_digit = models.CharField(max_length=100)
+    nic_4_digit = models.CharField(max_length=100)
+    nic_5_digit = models.CharField(max_length=100)
+    activity = models.CharField(max_length=50)
+    date = models.DateField()
+
+################### Mobile to Account ###################
+class MobileToAccountDetails(models.Model):
+    txn_id = models.CharField(max_length=100, unique=True)
+    api_category = models.CharField(max_length=100)
+    api_name = models.CharField(max_length=100)
+    billable = models.BooleanField()
+    message = models.CharField(max_length=255)
+    status = models.IntegerField()
+    datetime = models.DateTimeField()
+    mobile = models.CharField(max_length=15)  # Input mobile number
+
+    class Meta:
+        db_table = 'mobile_to_account_details'
+
+class AccountDetails(models.Model):
+    record = models.OneToOneField(MobileToAccountDetails, on_delete=models.CASCADE, related_name='account_details')
+    account_ifsc = models.CharField(max_length=20)
+    account_number = models.CharField(max_length=30)
+    amount_deposited = models.DecimalField(max_digits=10, decimal_places=2)
+
+class VpaDetails(models.Model):
+    record = models.OneToOneField(MobileToAccountDetails, on_delete=models.CASCADE, related_name='vpa_details')
+    account_holder_name = models.CharField(max_length=100)
+    vpa = models.CharField(max_length=100)
+    
