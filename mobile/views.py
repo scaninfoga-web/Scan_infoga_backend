@@ -101,11 +101,6 @@ def uan_history_search(request):
 
     if not uan_no_list or not isinstance(uan_no_list, list):
         return Response(create_response(False, "uanNoList must be a non-empty list", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({
-        #     "status": False,
-        #     "message": "uanNoList must be a non-empty list",
-        #     "data": None
-        # }, status=status.HTTP_400_BAD_REQUEST)
 
     results = []
     for uan_no in uan_no_list:
@@ -119,17 +114,10 @@ def uan_history_search(request):
                 })
                 continue
             except UANHistoryReport.DoesNotExist:
-                # results.append({
-                #     "uan": uan_no,
-                #     "source": "database",
-                #     "error": "No data found in database"
-                # })
-                # continue
                 pass
 
         # realtime_data = True or fallback to API
         api_response = fetch_uan_history_data(uan_no)
-        print("API RESPONSE: ", api_response)
         if api_response.get("success"):
             data = api_response["data"]
             report, _ = UANHistoryReport.objects.update_or_create(
@@ -150,11 +138,6 @@ def uan_history_search(request):
                 "error": "External API did not respond or returned an error."
             })
     return Response(create_response(True, "External API did not respond or returned an error." if not api_response.get('success') else  "Data fetched from external API" if realtime_data else "Data fetched from database", results), status=status.HTTP_200_OK if api_response.get("success") else status.HTTP_404_NOT_FOUND)
-    # return Response({
-    #     "status": True,
-    #     "message": "Data processed successfully",
-    #     "data": {"results": results}
-    # }, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 def uan_employment_search(request):
@@ -163,7 +146,6 @@ def uan_employment_search(request):
 
     if not uan_no_list:
         return Response(create_response(False, "uanNoList is required", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({"error": "uanNoList is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     results = []
 
@@ -175,8 +157,6 @@ def uan_employment_search(request):
                 results.append({"uan": uan, "source": "db", "data": serialized['result']})
                 continue
             except UANEmploymentReport.DoesNotExist:
-                # results.append({"uan": uan, "source": "db", "error": "No record found in DB"})
-                # continue
                 pass
         else:
             # Real-time or fallback if DB not found
@@ -200,7 +180,6 @@ def uan_employment_search(request):
                 })
 
     return Response(create_response(True, "Data processed successfully", results), status=status.HTTP_200_OK)
-    # return Response(results, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def esic_search(request):
@@ -229,22 +208,6 @@ def esic_search(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-        # return Response({
-        #     "message": "Data fetched from external API",
-        #     "data": result_data
-        # }, status=status.HTTP_200_OK)
-        
-        # else:
-        #     # If fetch fails or result not available
-        #     return Response(create_response(False, fetch_result.get('error') if 'error' in fetch_result else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-            # return Response(
-            #     {"error": "API did not respond or returned an error."},
-            #     status=status.HTTP_502_BAD_GATEWAY
-            # )
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False,f"Unexpected error: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
 
@@ -276,15 +239,9 @@ def gst_verification_search(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-        # else:
-        #     return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
-        # return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+
 @api_view(["POST"])
 def gst_turnover_search(request):
     gst_no = request.data.get("gst_no")
@@ -293,29 +250,17 @@ def gst_turnover_search(request):
 
     if not gst_no or not year:
         return Response(create_response(False, "gst_no and year are required", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({"error": "gst_no and year are required"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not realtime_data:
         try:
             report = GSTTurnoverReport.objects.get(gst_no=gst_no, year=year)
             serialized = GSTTurnoverReportSerializer(report).data
-            # return Response(create_response(True, "Data fetched from database", report.result), status=status.HTTP_200_OK)
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from database",
-            #     "data": report.result
-            # }, status=status.HTTP_200_OK)
         except GSTTurnoverReport.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this GST number and year", None), status=status.HTTP_404_NOT_FOUND)
-            # return Response({
-            #     "message": "No data found in database for this GST number and year"
-            # }, status=status.HTTP_404_NOT_FOUND)
     try:
-        # realtime_data == True
         api_response = fetch_gst_turnover_data(gst_no, year)
 
-        # if api_response.get("success") and "result" in api_response.get("data", {}):
         result_data = api_response["data"]
 
         GSTTurnoverReport.objects.update_or_create(
@@ -324,12 +269,6 @@ def gst_turnover_search(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-        # else:
-        #     return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
 
@@ -340,46 +279,24 @@ def udyam_verification_search(request):
 
     if not registration_no:
         return Response(create_response(False, "registration_no is required", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({"error": "registration_no is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not realtime_data:
         try:
-            print("registraion_no: ", registration_no)
             report = UdyamReport.objects.get(registration_no=registration_no)
             serialized = UdyamReportSerializer(report).data
-            # return Response(create_response(True, "Data fetched from database", report.result), status=status.HTTP_200_OK)
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from database",
-            #     "data": report.result  # ✅ return only the JSON-serializable result
-            # }, status=status.HTTP_200_OK)
         except UdyamReport.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this Udyam number", None), status=status.HTTP_404_NOT_FOUND)
-            # return Response({
-            #     "message": "No data found in database for this Udyam number"
-            # }, status=status.HTTP_404_NOT_FOUND)
     try:
         # Fetch fresh data from external API
         api_response = fetch_udyam_data(registration_no)
 
-        # if api_response.get("success") and "result" in api_response.get("data", {}):
         result_data = api_response["data"]
         UdyamReport.objects.update_or_create(
             registration_no=registration_no,
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from external API",
-            #     "data": result_data
-            # }, status=status.HTTP_200_OK)
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
 
@@ -390,30 +307,19 @@ def profile_advance_search(request):
 
     if not mobile:
         return Response(create_response(False, "mobile is required", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({"error": "mobile is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not realtime_data:
         try:
             report = ProfileAdvanceReport.objects.get(mobile=mobile)
             serialized = ProfileAdvanceReportSerializer(report).data
-            # return Response(create_response(True, "Data fetched from database", report.result), status=status.HTTP_200_OK)
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from database",
-            #     "data": report.result
-            # }, status=status.HTTP_200_OK)
         except ProfileAdvanceReport.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this mobile number", None), status=status.HTTP_404_NOT_FOUND)
-            # return Response({
-            #     "message": "No data found in database for this mobile number"
-            # }, status=status.HTTP_404_NOT_FOUND)
 
     try:
     # Fetch fresh data from external API
         api_response = fetch_profile_advance_data(mobile)
 
-        # if api_response.get("success") and "result" in api_response.get("data", {}):
         result_data = api_response["data"]
 
         ProfileAdvanceReport.objects.update_or_create(
@@ -421,16 +327,6 @@ def profile_advance_search(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-        # return Response({
-            #     "message": "Data fetched from external API",
-            #     "data": result_data
-            # }, status=status.HTTP_200_OK)
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
 
@@ -444,30 +340,19 @@ def equifax_v3_search(request):
 
     if not all([mobile, name, id_number, id_type]):
         return Response(create_response(False, "Missing one or more required fields: mobile, name, id_number, id_type", None), status=status.HTTP_400_BAD_REQUEST)
-        # return Response({"error": "Missing one or more required fields: mobile, name, id_number, id_type"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not realtime_data:
         try:
             report = EquifaxV3Report.objects.get(mobile=mobile)
             serialized = EquifaxV3ReportSerializer(report).data
-            # return Response(create_response(True, "Data fetched from database", report.result), status=status.HTTP_200_OK)
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from database",
-            #     "data": report.result
-            # }, status=status.HTTP_200_OK)
         except EquifaxV3Report.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this mobile number", None), status=status.HTTP_404_NOT_FOUND)
-            # return Response({
-            #     "message": "No data found in database for this mobile number"
-            # }, status=status.HTTP_404_NOT_FOUND)
 
     try:
         # Fetch from external API
         api_response = fetch_equifax_data(id_number, id_type, mobile, name)
 
-        # if api_response.get("success") and "result" in api_response.get("data", {}):
         result_data = api_response["data"]
 
         EquifaxV3Report.objects.update_or_create(
@@ -480,16 +365,6 @@ def equifax_v3_search(request):
             }
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-            # return Response({
-            #     "message": "Data fetched from external API",
-            #     "data": result_data
-            # }, status=status.HTTP_200_OK)
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
 
@@ -509,13 +384,11 @@ def get_acc_dtls_from_mobile(request):
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
         except MobileToAccountNumber.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this mobile number", None), status=status.HTTP_404_NOT_FOUND)
 
     try:
         # Fetch fresh data from external API
         api_response = fetch_mobile_to_account_data(mobile_number)
 
-        # if api_response.get("success") and "data" in api_response:
         result_data = api_response["data"]
 
         MobileToAccountNumber.objects.update_or_create(
@@ -523,12 +396,6 @@ def get_acc_dtls_from_mobile(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-        return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
 
@@ -551,10 +418,7 @@ def uan_passbook_without_otp(request):
                 continue
             except UanWithoutOtp.DoesNotExist:
                 pass
-                # results.append({"uan": uan, "source": "db", "error": "No record found in DB"})
-                # continue
 
-        # Real-time or fallback if DB not found
         api_response = get_uan_dtls_without_otp(uan)
 
         if api_response.get("success"):
@@ -594,13 +458,11 @@ def mobile_to_dl_lookup(request):
             return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
         except MobileToDLLookup.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this mobile number", None), status=status.HTTP_404_NOT_FOUND)
 
     try:
         # Fetch fresh data from external API
         api_response = fetch_mobile_to_dl_data(mobile_number, name, dob)
 
-        # if api_response.get("success") and "data" in api_response:
         result_data = api_response["data"]
 
         MobileToDLLookup.objects.update_or_create(
@@ -608,18 +470,11 @@ def mobile_to_dl_lookup(request):
             defaults={"result": result_data}
         )
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-        return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
     
 @api_view(["POST"])
 def pan_all_in_one(request):
-    print("Called")
     pan_number = request.data.get("pan_number")
     realtime_data = request.data.get("realtimeData", False)
 
@@ -634,12 +489,10 @@ def pan_all_in_one(request):
         
         except PanAllInOne.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in database for this PAN number", None), status=status.HTTP_404_NOT_FOUND)
         
     try:
         api_response = fetch_pan_all_in_one_data(pan_number)
         
-        # if api_response.get("success") and "data" in api_response:
         result_data = api_response["data"]
 
         PanAllInOne.objects.update_or_create(
@@ -649,12 +502,6 @@ def pan_all_in_one(request):
 
         return Response(create_response(True, "Data fetched from external API", result_data), status=status.HTTP_200_OK)
     
-    #     else:
-    #         return Response(create_response(False, api_response.get('error') if 'error' in api_response else "Internal Error", None), status=status.HTTP_404_NOT_FOUND)
-    # except requests.exceptions.RequestException as e:
-    #     return Response(create_response(False, f"API request failed: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-    # except json.JSONDecodeError:
-    #     return Response(create_response(False, "Failed to parse API response", None), status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
     
@@ -674,7 +521,6 @@ def digital_payment_analyser(request):
 
         except DigitalPaymentAnalyser.DoesNotExist:
             pass
-            # return Response(create_response(False, "No data found in the database for this mobile number."))
     
     try:
         api_response = fetch_digital_payment_analyser_data(mobile_number=mobile_number)

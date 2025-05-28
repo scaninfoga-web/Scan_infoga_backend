@@ -25,7 +25,7 @@ def get_user_activity(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def get_all_user_activity(request): #request
+def get_all_user_activity(request):
     activities = UserActivity.objects.filter(api_called="/api/mobile/getMobile360Dtls")
     serializer = UserActivitySerializer(activities, many=True)
     return Response(

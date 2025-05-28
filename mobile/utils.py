@@ -29,7 +29,6 @@ def fetch_mobile360_data(mobile_number):
     
     response = requests.post(api_url, headers=headers, json=payload)
     response.raise_for_status()
-    print("RESPONSE JSON: ", response.json())
     if response.json()['status'] == 1:
         data = response.json()
         transformed_data = transform_api_response(data, mobile_number)
@@ -594,15 +593,11 @@ upi_handles = {
 async def fetch_digital_payment_data_async(session, api_url, headers, payload, mobile_number, upi_handle, platform):
     """Asynchronous function to fetch data for a single UPI handle"""
     try:
-        print(f"TRYING with upi handle: {upi_handle}")
         async with session.post(api_url, headers=headers, json=payload) as response:
             response.raise_for_status()
             data = await response.json()
 
-            print("DATA: ", data["message"])
-            
             if data['status'] == 1:
-                print(f"SUCCESS with upi handle: {upi_handle}")
                 return {
                     str(mobile_number) + upi_handle: {
                         'success': True,
@@ -618,7 +613,6 @@ async def fetch_digital_payment_data_async(session, api_url, headers, payload, m
 
             
     except aiohttp.ClientResponseError as e:
-        print("EXCEPTION: ", e)
         return {
             str(mobile_number) + upi_handle: {
                 'success': False,
@@ -629,8 +623,6 @@ async def fetch_digital_payment_data_async(session, api_url, headers, payload, m
         }
     except json.JSONDecodeError:
         raise Exception("Failed to parse API response")
-
-        print("EXCEPTION: ")
         return {
             str(mobile_number) + upi_handle: {
                 'success': False,
@@ -641,7 +633,6 @@ async def fetch_digital_payment_data_async(session, api_url, headers, payload, m
         }
     except Exception as e:
         raise Exception(str(e))
-        print("EXCEPTION: ", e)
         return {
             str(mobile_number) + upi_handle: {
                 'success': False,
