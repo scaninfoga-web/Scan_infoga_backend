@@ -7,5 +7,5 @@ urlpatterns = [
     path('register/corporate', views.registerCorporate, name='register-corporate'),
     path('login', views.loginUser, name='login'),
     path('google/', views.googleAuth, name='login'),
-    path('protected/', views.protectedApi, name='protected'),
+    path('protected', views.protectedApi, name='protected'),
 ]

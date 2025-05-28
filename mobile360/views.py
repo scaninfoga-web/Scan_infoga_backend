@@ -8,14 +8,17 @@ from django.utils import timezone
 from django.db import transaction
 
 from .models import (
-    Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo,
-    MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights,
-    UanHistoryLatestV2,UanEmploymentHistory, GstVerification, EsicDtls, GstTurnover,
+    Mobile360, DigitalPaymentInfo, LPGInfo, TelcoInfo, MobileAgeInfo, WhatsappInfo, RevokeInfo, KeyHighlights,
+    UanHistoryLatestV2,UanEmploymentHistory,CompanyHistory,
+    GstVerification, GstTurnover, GstAuthorizedSignatory, GstBusinessAddress, GstBusinessDetail, GstBusinessNature, GstFilingStatus, GstTurnoverAuthorizedSignatory, GstTurnoverBusinessNature,
+    EsicDtls, 
     UdyamDetails, UdyamAddress, UdyamEnterpriseType, UdyamNICCode, UdyamPlantDetail,
-    MobileToAccountDetails, AccountDetails, VpaDetails
+    MobileToAccountDetails, AccountDetails, VpaDetails,
+    ProfileAdvanceLookup, PersonalInformation, AlternatePhone, Email, Address, DocumentData, PanDocument,
+    EquifaxReport,
 )
 from .utils import (
-    fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data, fetch_gst_data, fetch_gst_turnover_data, fetch_udyam_data, fetch_mobile_to_account_data
+    fetch_mobile360_data, fetch_uan_employment_data, fetch_uan_history_data, fetch_esic_data, fetch_gst_data, fetch_gst_turnover_data, fetch_udyam_data, fetch_mobile_to_account_data, fetch_profile_advance_data, fetch_equifax_data, format_equifax_response, update_equifax_record, create_equifax_record,
 )
 
 @api_view(['POST'])
@@ -513,7 +516,49 @@ def uan_employment_history_search(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Call external API
+        # If not realtime, check DB first
+        if not realtime_data:
+            try:
+                # Try to find existing UAN history in database
+                existing_history = UanEmploymentHistory.objects.filter(uan=uan_no).first()
+                
+                if existing_history:
+                    # Format response for client from database
+                    response_data = {
+                        "uan": uan_no,
+                        "result": {
+                            "name": existing_history.name,
+                            "dob": existing_history.dob,
+                            "employment_history": [
+                                {
+                                    "company_name": history.company_name,
+                                    "company_address": history.company_address
+                                }
+                                for history in existing_history.employment_history.all()
+                            ]
+                        }
+                    }
+                    
+                    return Response(
+                        create_response(
+                            status=True,
+                            message='Data retrieved from database',
+                            data=response_data
+                        ), 
+                        status=status.HTTP_200_OK
+                    )
+            except Exception as db_err:
+                # Return error message instead of proceeding silently
+                return Response(
+                    create_response(
+                        status=False,
+                        message=f"Database error: {str(db_err)}",
+                        data=None
+                    ),
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        # Call external API (either realtime_data is true or data not found in DB)
         api_response = fetch_uan_employment_data(uan_no)
         
         if not api_response['success']:
@@ -530,12 +575,19 @@ def uan_employment_history_search(request):
         api_data = api_response['data']
         
         try:
-            # Save to database with default values if needed
-            uan_history = UanEmploymentHistory.objects.create(
-                name=api_data['result']['name'] or 'Unknown',
-                dob=api_data['result']['dob'] or '01/01/1900'
+            # Use update_or_create instead of create to handle existing records
+            uan_history, created = UanEmploymentHistory.objects.update_or_create(
+                uan=uan_no,  # This is the lookup field (primary key)
+                defaults={
+                    'name': api_data['result']['name'] or 'Unknown',
+                    'dob': api_data['result']['dob'] or '01/01/1900'
+                }
             )
-
+            
+            # If updating an existing record, clear old company history to avoid duplicates
+            if not created:
+                uan_history.employment_history.all().delete()
+            
             # Save company history
             for company_data in api_data['result']['employment_history']:
                 CompanyHistory.objects.create(
@@ -1139,12 +1191,92 @@ def udyam_details_search(request):
                 existing = UdyamDetails.objects.filter(udyamnumber=udyam_number).first()
                 
                 if existing:
-                    return Response(create_response(True, 'Data retrieved from database', {
-                        'udyam_number': udyam_number,  # Use the input instead
-                        'enterprise_name': existing.enterprise_name,
-                        'organisation_type': existing.organisation_type,
-                        # Add more fields as needed
-                    }), status=status.HTTP_200_OK)
+                    # Create a response that matches the structure of realtime data
+                    formatted_response = {
+                        'api_category': existing.api_category,
+                        'api_name': existing.api_name,
+                        'billable': existing.billable,
+                        'txn_id': existing.txn_id,
+                        'message': existing.message,
+                        'status': existing.status,
+                        'datetime': existing.datetime.strftime('%Y-%m-%d %H:%M:%S.%f'),
+                        'result': {
+                            'enterprise_name': existing.enterprise_name,
+                            'organisation_type': existing.organisation_type,
+                            'service_type': existing.service_type,
+                            'gender': existing.gender,
+                            'social_category': existing.social_category,
+                            'date_of_incorporation': existing.date_of_incorporation.strftime('%d/%m/%Y') if existing.date_of_incorporation else '',
+                            'date_of_commencement': existing.date_of_commencement.strftime('%d/%m/%Y') if existing.date_of_commencement else '',
+                            'mobile': existing.mobile,
+                            'email': existing.email,
+                            'dic': existing.dic,
+                            'msme-dfo': existing.msme_dfo,
+                            'date_of_udyam_registeration': existing.date_of_udyam_registeration.strftime('%d/%m/%Y') if existing.date_of_udyam_registeration else ''
+                        }
+                    }
+                    
+                    # Add address if it exists
+                    try:
+                        address = existing.address
+                        if address:
+                            formatted_response['result']['address'] = {
+                                'flat_no': address.flat_no,
+                                'building': address.building,
+                                'village': address.village,
+                                'block': address.block,
+                                'street': address.street,
+                                'district': address.district,
+                                'city': address.city,
+                                'state': address.state,
+                                'pin': address.pin
+                            }
+                    except UdyamAddress.DoesNotExist:
+                        pass
+                    
+                    # Add plant details if they exist
+                    plant_details = []
+                    for plant in existing.plant_details.all():
+                        plant_details.append({
+                            'unit_name': plant.unit_name,
+                            'flat': plant.flat,
+                            'building': plant.building,
+                            'village': plant.village,
+                            'block': plant.block,
+                            'road': plant.road,
+                            'district': plant.district,
+                            'city': plant.city,
+                            'state': plant.state,
+                            'pin': plant.pin
+                        })
+                    if plant_details:
+                        formatted_response['result']['plant_details'] = plant_details
+                    
+                    # Add enterprise types if they exist
+                    enterprise_types = []
+                    for et in existing.enterprise_type.all():
+                        enterprise_types.append({
+                            'classification_year': et.classification_year,
+                            'enterprise_type': et.enterprise_type,
+                            'classification_date': et.classification_date.strftime('%d/%m/%Y') if et.classification_date else ''
+                        })
+                    if enterprise_types:
+                        formatted_response['result']['enterprise_type'] = enterprise_types
+                    
+                    # Add NIC codes if they exist
+                    nic_codes = []
+                    for nic in existing.nic_code.all():
+                        nic_codes.append({
+                            'nic_2_digit': nic.nic_2_digit,
+                            'nic_4_digit': nic.nic_4_digit,
+                            'nic_5_digit': nic.nic_5_digit,
+                            'activity': nic.activity,
+                            'date': nic.date.strftime('%d/%m/%Y') if nic.date else ''
+                        })
+                    if nic_codes:
+                        formatted_response['result']['nic_code'] = nic_codes
+                    
+                    return Response(create_response(True, 'Data retrieved from database', formatted_response), status=status.HTTP_200_OK)
             except Exception as db_err:
                 # Return error message instead of print
                 return Response(create_response(False, f"Database error: {str(db_err)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1194,11 +1326,22 @@ def udyam_details_search(request):
                 
             return Response(create_response(True, 'Only metadata received (e.g. source down)', data), status=status.HTTP_200_OK)
 
-        # Clean fields for nested saving
-        address = result.pop('address', {})
-        plants = result.pop('plant_details', [])
-        types = result.pop('enterprise_type', [])
-        nics = result.pop('nic_code', [])
+                # Instead of popping and removing the nested data, make copies
+        address = result.get('address', {})
+        plants = result.get('plant_details', [])
+        types = result.get('enterprise_type', [])
+        nics = result.get('nic_code', [])
+        
+        # For database operations, we still need to remove them from field_data
+        result_for_db = result.copy()
+        if 'address' in result_for_db:
+            result_for_db.pop('address')
+        if 'plant_details' in result_for_db:
+            result_for_db.pop('plant_details')
+        if 'enterprise_type' in result_for_db:
+            result_for_db.pop('enterprise_type')
+        if 'nic_code' in result_for_db:
+            result_for_db.pop('nic_code')
 
         try:
             # Try to delete if exists, but don't fail if it doesn't
@@ -1206,8 +1349,30 @@ def udyam_details_search(request):
         except Exception as e:
             return Response(create_response(False, f"Error deleting old records: {str(e)}", None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Prepare flat fields from result
-        field_data = {k: v for k, v in result.items() if hasattr(UdyamDetails, k)}
+        # Prepare flat fields from result_for_db
+        field_data = {k: v for k, v in result_for_db.items() if hasattr(UdyamDetails, k)}
+        
+        # Convert date fields in the main result to proper format
+        if 'date_of_incorporation' in field_data and field_data['date_of_incorporation']:
+            try:
+                date_obj = datetime.strptime(field_data['date_of_incorporation'], '%d/%m/%Y')
+                field_data['date_of_incorporation'] = date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                field_data['date_of_incorporation'] = '1900-01-01'
+                
+        if 'date_of_commencement' in field_data and field_data['date_of_commencement']:
+            try:
+                date_obj = datetime.strptime(field_data['date_of_commencement'], '%d/%m/%Y')
+                field_data['date_of_commencement'] = date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                field_data['date_of_commencement'] = '1900-01-01'
+                
+        if 'date_of_udyam_registeration' in field_data and field_data['date_of_udyam_registeration']:
+            try:
+                date_obj = datetime.strptime(field_data['date_of_udyam_registeration'], '%d/%m/%Y')
+                field_data['date_of_udyam_registeration'] = date_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                field_data['date_of_udyam_registeration'] = '1900-01-01'
 
         try:
             # Create a new record with all fields except udyamnumber if that's causing issues
@@ -1230,7 +1395,7 @@ def udyam_details_search(request):
                 from django.db import connection
                 with connection.cursor() as cursor:
                     cursor.execute(
-                        "UPDATE udyam_details SET udyamnumber = %s WHERE id = %s", 
+                        "UPDATE udyam_details SET registration_no = %s WHERE id = %s", 
                         [udyam_number, udyam.id]
                     )
             except Exception as e:
@@ -1244,11 +1409,31 @@ def udyam_details_search(request):
                 UdyamPlantDetail.objects.create(udyam=udyam, **plant)
 
             for et in types:
-                et['classification_date'] = datetime.strptime(et['classification_date'], '%d/%m/%Y').date()
+                try:
+                    # Convert the date string to a date object and then to YYYY-MM-DD format
+                    date_str = et.get('classification_date', '')
+                    if date_str:
+                        date_obj = datetime.strptime(date_str, '%d/%m/%Y')
+                        et['classification_date'] = date_obj.strftime('%Y-%m-%d')
+                    else:
+                        et['classification_date'] = '1900-01-01'
+                except ValueError:
+                    et['classification_date'] = '1900-01-01'
+                    
                 UdyamEnterpriseType.objects.create(udyam=udyam, **et)
 
             for nic in nics:
-                nic['date'] = datetime.strptime(nic['date'], '%d/%m/%Y').date()
+                try:
+                    # Convert the date string to a date object and then to YYYY-MM-DD format
+                    date_str = nic.get('date', '')
+                    if date_str:
+                        date_obj = datetime.strptime(date_str, '%d/%m/%Y')
+                        nic['date'] = date_obj.strftime('%Y-%m-%d')
+                    else:
+                        nic['date'] = '1900-01-01'
+                except ValueError:
+                    nic['date'] = '1900-01-01'
+                    
                 UdyamNICCode.objects.create(udyam=udyam, **nic)
                 
         except Exception as e:
@@ -1430,4 +1615,360 @@ def mobile_to_account_search(request):
 
     except Exception as e:
         return Response(create_response(False, f'Error processing request: {str(e)}', None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def profile_advance_search(request):
+    try:
+        mobile = request.data.get('mobileNumber')
+        realtime = request.data.get('realtimeData', False)
+
+        if not mobile:
+            return Response(create_response(False, 'Mobile number is required', None), status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if data exists in database
+        existing_record = None
+        
+        try:
+            existing_record = ProfileAdvanceLookup.objects.get(mobile=mobile)
+            
+            # If not requesting realtime data, return existing data
+            if not realtime:
+                # Format the response to match the realtime data format
+                formatted_response = {
+                    "mobile": mobile,
+                    "txn_id": str(existing_record.txn_id),
+                    "api_category": existing_record.api_category,
+                    "api_name": existing_record.api_name,
+                    "billable": existing_record.billable,
+                    "message": existing_record.message,
+                    "status": existing_record.status,
+                    "datetime": existing_record.datetime.isoformat(),
+                    "result": {
+                        "personal_information": {
+                            "full_name": existing_record.personal_information.full_name,
+                            "gender": existing_record.personal_information.gender,
+                            "age": existing_record.personal_information.age,
+                            "date_of_birth": existing_record.personal_information.date_of_birth.isoformat() if existing_record.personal_information.date_of_birth else "",
+                            "income": existing_record.personal_information.income
+                        },
+                        "alternate_phone": [
+                            {
+                                "serial_number": phone.serial_number,
+                                "value": phone.value
+                            } for phone in existing_record.alternate_phones.all()
+                        ],
+                        "email": [
+                            {
+                                "serial_number": email.serial_number,
+                                "value": email.value
+                            } for email in existing_record.emails.all()
+                        ],
+                        "address": [
+                            {
+                                "detailed_address": addr.detailed_address,
+                                "state": addr.state,
+                                "pincode": addr.pincode,
+                                "type": addr.type,
+                                "date_of_reporting": addr.date_of_reporting.isoformat() if addr.date_of_reporting else ""
+                            } for addr in existing_record.addresses.all()
+                        ],
+                        "document_data": {
+                            "pan": [
+                                {
+                                    "serial_number": pan.serial_number,
+                                    "value": pan.value
+                                } for pan in existing_record.document_data.pan_documents.all()
+                            ]
+                        }
+                    }
+                }
+                
+                return Response(create_response(True, 'Data from database', formatted_response), status=status.HTTP_200_OK)
+        except ProfileAdvanceLookup.DoesNotExist:
+            existing_record = None
+
+        # Call external API if no existing data or realtime_data is True
+        api_response = fetch_profile_advance_data(mobile)
+        if not api_response['success']:
+            return Response(create_response(False, api_response['error'], None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        data = api_response['data']
+        
+        # Validate that the required fields exist in the API response
+        if 'result' not in data:
+            return Response(create_response(False, 'Invalid API response: missing result field', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        result = data.get('result', {})
+        
+        # Check if required sections exist
+        if 'personal_information' not in result:
+            return Response(create_response(False, 'Invalid API response: missing personal information', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        personal_info = result.get('personal_information', {})
+        
+        # Validate required fields for database creation
+        required_fields = ['txn_id', 'api_category', 'api_name', 'billable', 'message', 'status', 'datetime']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            return Response(create_response(False, f'Invalid API response: missing fields {missing_fields}', None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Transaction handling for database operations
+        with transaction.atomic():
+            # If record exists, update it instead of creating a new one
+            if existing_record:
+                # Update the main ProfileAdvanceLookup record
+                existing_record.txn_id = data.get('txn_id')
+                existing_record.api_category = data.get('api_category', '')
+                existing_record.api_name = data.get('api_name', '')
+                existing_record.billable = data.get('billable', False)
+                existing_record.message = data.get('message', '')
+                existing_record.status = data.get('status', 0)
+                
+                # Parse datetime properly
+                datetime_str = data.get('datetime', '')
+                if datetime_str:
+                    # Handle ISO format with or without timezone
+                    if datetime_str.endswith('Z'):
+                        datetime_str = datetime_str.replace('Z', '+00:00')
+                    existing_record.datetime = datetime.fromisoformat(datetime_str)
+                
+                existing_record.save()
+                
+                record = existing_record
+                
+                # Update personal information
+                personal_info_record = record.personal_information
+                personal_info_record.full_name = personal_info.get('full_name', '')
+                personal_info_record.gender = personal_info.get('gender', '')
+                personal_info_record.age = personal_info.get('age', '')
+                
+                # Handle date fields carefully
+                dob = personal_info.get('date_of_birth', '')
+                if dob:
+                    try:
+                        personal_info_record.date_of_birth = datetime.strptime(dob, '%Y-%m-%d').date()
+                    except ValueError:
+                        personal_info_record.date_of_birth = None
+                else:
+                    personal_info_record.date_of_birth = None
+                
+                personal_info_record.income = personal_info.get('income', '')
+                personal_info_record.save()
+                
+                # Delete existing alternate phones and create new ones
+                record.alternate_phones.all().delete()
+                for phone in result.get('alternate_phone', []):
+                    AlternatePhone.objects.create(
+                        profile=record,
+                        serial_number=phone.get('serial_number', ''),
+                        value=phone.get('value', '')
+                    )
+                
+                # Delete existing emails and create new ones
+                record.emails.all().delete()
+                for email in result.get('email', []):
+                    Email.objects.create(
+                        profile=record,
+                        serial_number=email.get('serial_number', ''),
+                        value=email.get('value', '')
+                    )
+                
+                # Delete existing addresses and create new ones
+                record.addresses.all().delete()
+                for addr in result.get('address', []):
+                    # Handle date fields carefully
+                    reporting_date = addr.get('date_of_reporting', '')
+                    parsed_date = None
+                    if reporting_date:
+                        try:
+                            parsed_date = datetime.strptime(reporting_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            parsed_date = None
+                    
+                    Address.objects.create(
+                        profile=record,
+                        detailed_address=addr.get('detailed_address', ''),
+                        state=addr.get('state', ''),
+                        pincode=addr.get('pincode', ''),
+                        type=addr.get('type', ''),
+                        date_of_reporting=parsed_date
+                    )
+                
+                # Update document data
+                document_data = result.get('document_data', {})
+                if document_data:
+                    # Delete existing PAN documents and create new ones
+                    record.document_data.pan_documents.all().delete()
+                    for pan in document_data.get('pan', []):
+                        PanDocument.objects.create(
+                            document_data=record.document_data,
+                            serial_number=pan.get('serial_number', ''),
+                            value=pan.get('value', '')
+                        )
+                
+            else:
+                # Create new record if it doesn't exist
+                # Parse datetime properly
+                datetime_str = data.get('datetime', '')
+                datetime_obj = None
+                if datetime_str:
+                    # Handle ISO format with or without timezone
+                    if datetime_str.endswith('Z'):
+                        datetime_str = datetime_str.replace('Z', '+00:00')
+                    datetime_obj = datetime.fromisoformat(datetime_str)
+                
+                record = ProfileAdvanceLookup.objects.create(
+                    txn_id=data['txn_id'],
+                    api_category=data['api_category'],
+                    api_name=data['api_name'],
+                    billable=data['billable'],
+                    message=data['message'],
+                    status=data['status'],
+                    datetime=datetime_obj,
+                    mobile=mobile
+                )
+                
+                # Create personal information
+                dob = personal_info.get('date_of_birth', '')
+                dob_date = None
+                if dob:
+                    try:
+                        dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+                    except ValueError:
+                        dob_date = None
+                
+                personal_info_record = PersonalInformation.objects.create(
+                    profile=record,
+                    full_name=personal_info.get('full_name', ''),
+                    gender=personal_info.get('gender', ''),
+                    age=personal_info.get('age', ''),
+                    date_of_birth=dob_date,
+                    income=personal_info.get('income', '')
+                )
+                
+                # Create alternate phones
+                for phone in result.get('alternate_phone', []):
+                    AlternatePhone.objects.create(
+                        profile=record,
+                        serial_number=phone.get('serial_number', ''),
+                        value=phone.get('value', '')
+                    )
+                
+                # Create emails
+                for email in result.get('email', []):
+                    Email.objects.create(
+                        profile=record,
+                        serial_number=email.get('serial_number', ''),
+                        value=email.get('value', '')
+                    )
+                
+                # Create addresses
+                for addr in result.get('address', []):
+                    # Handle date fields carefully
+                    reporting_date = addr.get('date_of_reporting', '')
+                    parsed_date = None
+                    if reporting_date:
+                        try:
+                            parsed_date = datetime.strptime(reporting_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            parsed_date = None
+                    
+                    Address.objects.create(
+                        profile=record,
+                        detailed_address=addr.get('detailed_address', ''),
+                        state=addr.get('state', ''),
+                        pincode=addr.get('pincode', ''),
+                        type=addr.get('type', ''),
+                        date_of_reporting=parsed_date
+                    )
+                
+                # Create document data
+                document_data = result.get('document_data', {})
+                if document_data:
+                    doc_data_record = DocumentData.objects.create(profile=record)
+                    
+                    # Create PAN documents
+                    for pan in document_data.get('pan', []):
+                        PanDocument.objects.create(
+                            document_data=doc_data_record,
+                            serial_number=pan.get('serial_number', ''),
+                            value=pan.get('value', '')
+                        )
+
+        # Return the API response directly to maintain the same format
+        return Response(create_response(True, 'Data retrieved and saved successfully', data), status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response(create_response(False, f'Error processing request: {str(e)}', None), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def equifax_report_search(request):
+    try:
+        id_number = request.data.get('idNumber')
+        id_type = request.data.get('idType', 'pan')  # Default to PAN if not provided
+        realtime = request.data.get('realtimeData', False)
+        mobile_number = request.data.get('mobileNumber')  # Add mobile number parameter
+        name = request.data.get('name')  # Add name parameter
+        
+        if not id_number:
+            return Response(create_response(False, 'ID number is required', None), 
+                           status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if data exists in database
+        existing_record = None
+        
+        try:
+            existing_record = EquifaxReport.objects.get(id_number=id_number, id_type=id_type)
+            
+            # If not requesting realtime data, return existing data
+            if not realtime:
+                # Format the response to match the realtime data format
+                formatted_response = format_equifax_response(existing_record)
+                return Response(create_response(True, 'Data from database', formatted_response), 
+                               status=status.HTTP_200_OK)
+        except EquifaxReport.DoesNotExist:
+            existing_record = None
+        
+        # Call external API if no existing data or realtime_data is True
+        api_response = fetch_equifax_data(id_number, id_type, mobile_number, name)  # Pass mobile number and name to the function
+        if not api_response['success']:
+            return Response(create_response(False, api_response['error'], None), 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        data = api_response['data']
+        
+        # Validate that the required fields exist in the API response
+        if 'result' not in data:
+            return Response(create_response(False, 'Invalid API response: missing result field', None),
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        result = data.get('result', {})
+        
+        # Validate required fields for database creation
+        required_fields = ['txn_id', 'api_category', 'api_name', 'billable', 'message', 'status', 'datetime']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            return Response(create_response(False, f'Invalid API response: missing fields {missing_fields}', None),
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Transaction handling for database operations
+        with transaction.atomic():
+            if existing_record:
+                # Update existing record
+                update_equifax_record(existing_record, data)
+            else:
+                # Create new record
+                create_equifax_record(data)
+        
+        # Return the API response directly to maintain the same format
+        return Response(create_response(True, 'Data retrieved and saved successfully', data), 
+                       status=status.HTTP_200_OK)
     
+    except Exception as e:
+        return Response(create_response(False, f'Error processing request: {str(e)}', None), 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)

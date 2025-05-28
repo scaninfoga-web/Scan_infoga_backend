@@ -12,4 +12,6 @@ urlpatterns = [
     path('gstturnover', views.gst_turnover, name='gst_turnover'),
     path('verifyudyam', views.udyam_details_search, name='udyam_details_search'),
     path('mobiletoaccount', views.mobile_to_account_search, name='mobile_to_account_search'),
+    path('profileadvance', views.profile_advance_search, name='profile_advance_search'),
+    path('equifaxv3', views.equifax_report_search, name='equifax_report_search'),
 ]

@@ -14,6 +14,8 @@ from pathlib import Path
 import sys
 import os
 
+from corsheaders.defaults import default_headers
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -54,8 +56,9 @@ EXTERNAL_APPS = [
     'custom_auth',
     'hudsonrock',
     'user_activities',
-    'drf_yasg',
-    'mobile360',
+    # 'drf_yasg',
+    'mobile360',    
+    'mobile'
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS
@@ -83,7 +86,12 @@ GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True  # Set to True only in development
-ALLOWED_HOSTS = ['172.31.27.231', '*']
+ALLOWED_HOSTS = ['172.31.27.231', '*', 'localhost']
+
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'clientinfo',  # ❗ add your custom header name here, lowercase
+]
 
 # JWT settings
 from datetime import timedelta
