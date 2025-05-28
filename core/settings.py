@@ -56,8 +56,6 @@ EXTERNAL_APPS = [
     'custom_auth',
     'hudsonrock',
     'user_activities',
-    # 'drf_yasg',
-    # 'mobile360',
     'mobile'
 ]
 
