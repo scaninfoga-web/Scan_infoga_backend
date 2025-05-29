@@ -29,3 +29,10 @@ def create_token(user):
     }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
     return token
+
+def get_user_from_token(token):
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+    email = payload.get("email")
+    user_type = payload.get("user_type")
+    user = CustomUser.objects.get(email=email, user_type=user_type)
+    return user

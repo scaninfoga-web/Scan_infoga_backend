@@ -19,6 +19,8 @@ from google.auth.transport import requests
 from django.conf import settings
 from drf_yasg.utils import swagger_auto_schema
 
+from payments.utils import create_wallet
+
 @api_view(['POST'])
 def registerUser(request):
     serializer = UserRegistrationSerializer(data=request.data)
@@ -28,6 +30,10 @@ def registerUser(request):
         secret_key = pyotp.random_base32()
         user.otp_secret = secret_key
         user.save()
+
+        # create wallet for user after user is created 
+        # and by default add 2000 credit
+        create_wallet(user)
         
         # Generate QR code
         qr_code = generate_qr_code(user.email, secret_key)
