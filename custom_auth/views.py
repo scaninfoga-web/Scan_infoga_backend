@@ -366,10 +366,9 @@ def get_user_map(request):
     # Get user's location
     user_location_lng = request.data.get('userLng')
     user_location_lat = request.data.get('userLat')
-    address_location_lng = request.data.get('addressLng')
-    address_location_lat = request.data.get('addressLat')
+    address = request.data.get('address')
     
-    if not all([user_location_lat, user_location_lng, address_location_lat, address_location_lng]):
+    if not all([user_location_lat, user_location_lng, address]):
         return Response(
             create_response(
                 status=False,
@@ -383,29 +382,25 @@ def get_user_map(request):
         api_response = fetch_map(
             starting_point_lng=user_location_lng, 
             starting_point_lat=user_location_lat, 
-            ending_point_lng=address_location_lng, 
-            ending_point_lat=address_location_lat
+            address=address
         )
         
         # Option 1: Return base64 encoded image in JSON response
-        # return Response(
-        #     create_response(
-        #         status=True,
-        #         message="Map fetched successfully",
-        #         data={
-        #             'image': api_response['data'],
-        #             'content_type': api_response.get('content_type', 'image/png')
-        #         }
-        #     ),
-        #     status=status.HTTP_200_OK
-        # )
+        return Response(
+            create_response(
+                status=api_response['success'],
+                message="Map fetched successfully",
+                data=api_response['data']
+            ),
+            status=status.HTTP_200_OK
+        )
         
         # Option 2: Return image directly
-        image_data = base64.b64decode(api_response['data'])
-        return HttpResponse(
-            image_data,
-            content_type=api_response.get('content_type', 'image/png')
-        )
+        # image_data = base64.b64decode(api_response['data']['image'])
+        # return HttpResponse(
+        #     image_data,
+        #     content_type=api_response.get('content_type', 'image/png')
+        # )
     
     except Exception as e:
         return Response(
