@@ -25,12 +25,9 @@ def fetch_route(starting_point_lng, starting_point_lat, ending_point_lng, ending
         try:
             return response.json()
         except json.JSONDecodeError as e:
-            print(f"Error parsing JSON: {e}")
-            return None
+            raise Exception(f"Error parsing JSON {e}")
     else:
-        print(f"API request failed with status code: {response.status_code}")
-        print(f"Response text: {response.text}")
-        return None
+        raise Exception(f"API request failed with status code: {response.status_code} and response text: {response.text}")
 
 def extract_route_coordinates(route_data):
     try:
@@ -129,6 +126,6 @@ if __name__ == "__main__":
             plt.axis('off')
             plt.show()
         except Exception as e:
-            print(f"Failed to load map image: {e}")
+            raise Exception(f'Error decoding image: {e}')
     else:
-        print("Failed to fetch map image.")
+        raise Exception('Failed to fetch map.')

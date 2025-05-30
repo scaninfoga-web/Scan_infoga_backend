@@ -70,3 +70,4 @@ user-agents==2.2.0
 wcwidth==0.2.13
 gunicorn==20.1.0
 aiohttp==3.9.3
+numpy<2.2.5
