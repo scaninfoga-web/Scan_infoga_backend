@@ -113,19 +113,3 @@ def fetch_map(starting_point_lng, starting_point_lat, ending_point_lng, ending_p
         }
     else:
         raise Exception(f'API request failed with status code: {response.status_code}')
-
-if __name__ == "__main__":
-    map_response = fetch_map(76.965506, 28.638734, 77.051561, 28.539544)
-    if map_response:
-        try:
-            # Decode base64 back to image for display
-            image_data = base64.b64decode(map_response['data'])
-            print(image_data)
-            image = Image.open(io.BytesIO(image_data))
-            plt.imshow(image)
-            plt.axis('off')
-            plt.show()
-        except Exception as e:
-            raise Exception(f'Error decoding image: {e}')
-    else:
-        raise Exception('Failed to fetch map.')
