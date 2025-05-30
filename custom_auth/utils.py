@@ -6,7 +6,7 @@ import base64
 from dotenv import load_dotenv
 from PIL import Image
 import io
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 load_dotenv()
 

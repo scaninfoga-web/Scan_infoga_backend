@@ -1,5 +1,6 @@
 import jwt
 from django.conf import settings
+from custom_auth.models import CustomUser
 
 def create_response(status, message, data = None):
     return {
@@ -33,6 +34,7 @@ def create_token(user):
 def get_user_from_token(token):
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
     email = payload.get("email")
-    user_type = payload.get("user_type")
-    user = CustomUser.objects.get(email=email, user_type=user_type)
+    print("DJWHBFHJWD: ", email)
+    user = CustomUser.objects.get(email=email)
+    print("USER UTIL ", user)
     return user

@@ -80,7 +80,7 @@ def loginUser(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if userType not in ['crp', 'dev', 'user']:
+    if userType not in ['crp', 'dev', 'user', 'admin']:
         return Response(
             create_response(
                 status=False,
@@ -106,7 +106,8 @@ def loginUser(request):
     user_type_map = {
         'crp': 'CORPORATE',
         'dev': 'DEVELOPER',
-        'user': 'USER'
+        'user': 'USER',
+        'admin': 'ADMIN'
     }
     
     if user.user_type != user_type_map.get(userType):

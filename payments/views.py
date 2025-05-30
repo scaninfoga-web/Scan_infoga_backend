@@ -6,6 +6,8 @@ from core.utils import create_response, get_token_from_header, get_user_from_tok
 from .models import Transaction, WalletBalance
 from core.permissions import IsAdminUserType
 from .serializers import TransactionSerializer
+from rest_framework import status
+from decimal import Decimal
 
 from django.utils import timezone
 
@@ -164,7 +166,7 @@ def update_txn_status_to_success(request):
 
     # update the wallet balance for the user
     wallet = WalletBalance.objects.get(user=txn.user)
-    wallet.balance += txn.amount
+    wallet.balance += Decimal(txn.amount)
     wallet.save()
 
     return Response(
@@ -217,8 +219,11 @@ def update_txn_status_to_failed(request):
 @permission_classes([IsAuthenticated])
 def get_wallet_balance(request):
     token = get_token_from_header(request)
+    print("TOKEN: ", token)
     user = get_user_from_token(token)
+    print("USER: ", user)
     wallet = WalletBalance.objects.get(user=user)
+    print("WALLET: ", wallet.balance)
     return Response(
         create_response(
             status=True,
