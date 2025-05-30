@@ -18,7 +18,11 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from drf_yasg.utils import swagger_auto_schema
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
+from rest_framework.decorators import parser_classes
+from django.http import HttpResponse
 
+from .utils import fetch_map
 from payments.utils import create_wallet
 
 @api_view(['POST'])
@@ -355,3 +359,60 @@ def generate_qr_code(email, secret_key):
     qr_code = base64.b64encode(buffer.getvalue()).decode()
     
     return qr_code
+
+@api_view(['POST'])
+@parser_classes([JSONParser, FormParser, MultiPartParser])
+def get_user_map(request):
+    # Get user's location
+    user_location_lng = request.data.get('userLng')
+    user_location_lat = request.data.get('userLat')
+    address_location_lng = request.data.get('addressLng')
+    address_location_lat = request.data.get('addressLat')
+    
+    if not all([user_location_lat, user_location_lng, address_location_lat, address_location_lng]):
+        return Response(
+            create_response(
+                status=False,
+                message="Please provide user's location and address location",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        api_response = fetch_map(
+            starting_point_lng=user_location_lng, 
+            starting_point_lat=user_location_lat, 
+            ending_point_lng=address_location_lng, 
+            ending_point_lat=address_location_lat
+        )
+        
+        # Option 1: Return base64 encoded image in JSON response
+        # return Response(
+        #     create_response(
+        #         status=True,
+        #         message="Map fetched successfully",
+        #         data={
+        #             'image': api_response['data'],
+        #             'content_type': api_response.get('content_type', 'image/png')
+        #         }
+        #     ),
+        #     status=status.HTTP_200_OK
+        # )
+        
+        # Option 2: Return image directly
+        image_data = base64.b64decode(api_response['data'])
+        return HttpResponse(
+            image_data,
+            content_type=api_response.get('content_type', 'image/png')
+        )
+    
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message="Error fetching map",
+                data=str(e)
+            ),
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

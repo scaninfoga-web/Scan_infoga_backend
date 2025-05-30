@@ -8,4 +8,5 @@ urlpatterns = [
     path('login', views.loginUser, name='login'),
     path('google/', views.googleAuth, name='login'),
     path('protected', views.protectedApi, name='protected'),
+    path('getmap', views.get_user_map, name='get-map'),
 ]
