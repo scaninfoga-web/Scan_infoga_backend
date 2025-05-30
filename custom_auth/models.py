@@ -28,7 +28,8 @@ class CustomUser(AbstractUser):
     user_type = models.CharField(max_length=20, choices=[
         ('CORPORATE', 'Corporate'),
         ('DEVELOPER', 'Developer'),
-        ('USER', 'User')
+        ('USER', 'User'),
+        ('ADMIN', 'Admin')
     ], default='USER')
     date_joined = models.DateTimeField(auto_now_add=True, null=True)
     otp_secret = models.CharField(max_length=32)  # Remove blank=True, null=True to make it required
