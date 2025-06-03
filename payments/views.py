@@ -30,7 +30,7 @@ def post_txn(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     # check if the amount is a valid number
-    if not amount.isdigit():
+    if not str(amount).isdigit():
         return Response(
             create_response(
                 status=False,
@@ -76,13 +76,39 @@ def post_txn(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_pending_txns(request):
-    txns = Transaction.objects.filter(status='PENDING')
+    count = request.query_params.get('count', 20)
+    page = request.query_params.get('page', 1)
+    
+    try:
+        count = int(count)
+        page = int(page)
+    except ValueError:
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid count or page number",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    start = (page - 1) * count
+    end = start + count
+    
+    txns = Transaction.objects.filter(status='pending')[start:end]
+    total_count = Transaction.objects.filter(status='pending').count()
+    
     serialized_txns = TransactionSerializer(txns, many=True)
     return Response(
         create_response(
             status=True,
             message="Pending transactions retrieved successfully",
-            data=serialized_txns.data
+            data={
+                'transactions': serialized_txns.data,
+                'total_count': total_count,
+                'page': page,
+                'count': count
+            }
         ),
         status=status.HTTP_200_OK
     )
@@ -90,13 +116,39 @@ def get_pending_txns(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_completed_txns(request):
-    txns = Transaction.objects.filter(status='SUCCESS')
+    count = request.query_params.get('count', 20)
+    page = request.query_params.get('page', 1)
+    
+    try:
+        count = int(count)
+        page = int(page)
+    except ValueError:
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid count or page number",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    start = (page - 1) * count
+    end = start + count
+    
+    txns = Transaction.objects.filter(status='SUCCESS')[start:end]
+    total_count = Transaction.objects.filter(status='SUCCESS').count()
+    
     serialized_txns = TransactionSerializer(txns, many=True)
     return Response(
         create_response(
             status=True,
             message="Successful transactions retrieved successfully",
-            data=serialized_txns.data
+            data={
+                'transactions': serialized_txns.data,
+                'total_count': total_count,
+                'page': page,
+                'count': count
+            }
         ),
         status=status.HTTP_200_OK
     )
@@ -104,13 +156,39 @@ def get_completed_txns(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_failed_txns(request):
-    txns = Transaction.objects.filter(status='FAILED')
+    count = request.query_params.get('count', 20)
+    page = request.query_params.get('page', 1)
+    
+    try:
+        count = int(count)
+        page = int(page)
+    except ValueError:
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid count or page number",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    start = (page - 1) * count
+    end = start + count
+    
+    txns = Transaction.objects.filter(status='FAILED')[start:end]
+    total_count = Transaction.objects.filter(status='FAILED').count()
+    
     serialized_txns = TransactionSerializer(txns, many=True)
     return Response(
         create_response(
             status=True,
             message="Failed transactions retrieved successfully",
-            data=serialized_txns.data
+            data={
+                'transactions': serialized_txns.data,
+                'total_count': total_count,
+                'page': page,
+                'count': count
+            }
         ),
         status=status.HTTP_200_OK
     )
@@ -159,7 +237,7 @@ def update_txn_status_to_success(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     txn = Transaction.objects.get(txn_id=txn_id)
-    txn.status = 'SUCCESS'
+    txn.status = 'success'
     txn.amount = amount
     txn.updated_at = timezone.now()
     txn.save()
@@ -202,7 +280,7 @@ def update_txn_status_to_failed(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     txn = Transaction.objects.get(txn_id=txn_id)
-    txn.status = 'FAILED'
+    txn.status = 'failed'
     txn.amount = amount
     txn.updated_at = timezone.now()
     txn.save()
@@ -222,7 +300,18 @@ def get_wallet_balance(request):
     print("TOKEN: ", token)
     user = get_user_from_token(token)
     print("USER: ", user)
-    wallet = WalletBalance.objects.get(user=user)
+    # wallet = WalletBalance.objects.get(user=user)
+    try:
+        wallet = WalletBalance.objects.get(user=user)
+    except WalletBalance.DoesNotExist:
+        return Response(
+            create_response(
+                status=False,
+                message="Wallet balance not found for user",
+                data=None
+            ),
+            status=status.HTTP_404_NOT_FOUND
+        )
     print("WALLET: ", wallet.balance)
     return Response(
         create_response(

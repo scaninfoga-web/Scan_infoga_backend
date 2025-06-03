@@ -167,6 +167,8 @@ def fetch_esic_data(mobile_number):
     response.raise_for_status()
     
     data = response.json()
+
+    print("Data for esic is: ",data)
     if data['status'] == 1:
         return {
             'success': True,
