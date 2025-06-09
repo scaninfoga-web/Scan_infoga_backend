@@ -9,6 +9,10 @@ from .serializers import TransactionSerializer
 from rest_framework import status
 from decimal import Decimal
 
+import time
+from django.db import connection
+
+
 from django.utils import timezone
 
 
@@ -135,8 +139,8 @@ def get_completed_txns(request):
     start = (page - 1) * count
     end = start + count
     
-    txns = Transaction.objects.filter(status='SUCCESS')[start:end]
-    total_count = Transaction.objects.filter(status='SUCCESS').count()
+    txns = Transaction.objects.filter(status='success')[start:end]
+    total_count = Transaction.objects.filter(status='success').count()
     
     serialized_txns = TransactionSerializer(txns, many=True)
     return Response(
@@ -156,42 +160,85 @@ def get_completed_txns(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_failed_txns(request):
-    count = request.query_params.get('count', 20)
-    page = request.query_params.get('page', 1)
-    
-    try:
-        count = int(count)
-        page = int(page)
-    except ValueError:
-        return Response(
-            create_response(
-                status=False,
-                message="Invalid count or page number",
-                data=None
-            ),
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
+    start_total = time.time()
+    count = int(request.query_params.get('count', 20))
+    page = int(request.query_params.get('page', 1))
+
     start = (page - 1) * count
     end = start + count
-    
-    txns = Transaction.objects.filter(status='FAILED')[start:end]
-    total_count = Transaction.objects.filter(status='FAILED').count()
-    
+
+    db_start = time.time()
+    txns = Transaction.objects.filter(status='failed') \
+        .select_related('user') \
+        .order_by('-created_at')[start:end]
+    total_count = Transaction.objects.filter(status='failed').count()
+    db_end = time.time()
+
+    serializer_start = time.time()
     serialized_txns = TransactionSerializer(txns, many=True)
-    return Response(
-        create_response(
-            status=True,
-            message="Failed transactions retrieved successfully",
-            data={
-                'transactions': serialized_txns.data,
-                'total_count': total_count,
-                'page': page,
-                'count': count
-            }
-        ),
-        status=status.HTTP_200_OK
-    )
+    serializer_end = time.time()
+
+    total_end = time.time()
+
+    print("========== TRACE ==========")
+    print(f"DB Query Time:        {db_end - db_start:.3f}s")
+    print(f"Serialization Time:   {serializer_end - serializer_start:.3f}s")
+    print(f"Total View Time:      {total_end - start_total:.3f}s")
+    print(f"DB Queries Run:       {len(connection.queries)}")
+    print("===========================")
+
+    return Response(create_response(
+        status=True,
+        message="Success",
+        data={
+            'transactions': serialized_txns.data,
+            'total_count': total_count,
+            'page': page,
+            'count': count
+        }
+    ))
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_failed_txns(request):
+#     count = request.query_params.get('count', 20)
+#     page = request.query_params.get('page', 1)
+    
+#     try:
+#         count = int(count)
+#         page = int(page)
+#     except ValueError:
+#         return Response(
+#             create_response(
+#                 status=False,
+#                 message="Invalid count or page number",
+#                 data=None
+#             ),
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+    
+#     start = (page - 1) * count
+#     end = start + count
+    
+#     # txns = Transaction.objects.filter(status='failed')[start:end]
+#     txns = Transaction.objects.filter(status='failed').select_related('user')[start:end]
+#     total_count = Transaction.objects.filter(status='failed').count()
+    
+#     serialized_txns = TransactionSerializer(txns, many=True)
+#     return Response(
+#         create_response(
+#             status=True,
+#             message="Failed transactions retrieved successfully",
+#             data={
+#                 'transactions': serialized_txns.data,
+#                 'total_count': total_count,
+#                 'page': page,
+#                 'count': count
+#             }
+#         ),
+#         status=status.HTTP_200_OK
+#     )
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -261,6 +308,7 @@ def update_txn_status_to_success(request):
 def update_txn_status_to_failed(request):
     txn_id = request.data.get('txn_id')
     amount = request.data.get('amount')
+    comment = request.data.get('comment', "")
     if not amount:
         return Response(
             create_response(
@@ -281,6 +329,7 @@ def update_txn_status_to_failed(request):
         )
     txn = Transaction.objects.get(txn_id=txn_id)
     txn.status = 'failed'
+    txn.comment = comment
     txn.amount = amount
     txn.updated_at = timezone.now()
     txn.save()

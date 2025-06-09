@@ -23,7 +23,7 @@ def get_user_activity(request):
             status=status.HTTP_200_OK
         )
 
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_user_activity(request):
     activities = UserActivity.objects.filter(api_called="/api/mobile/getMobile360Dtls")
