@@ -151,4 +151,4 @@ class LeakOSINT(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.mobile_number
+        return self.request_body
