@@ -24,7 +24,8 @@ from .models import (
     MobileToAccountNumber,
     UanWithoutOtp,
     PanAllInOne,
-    DigitalPaymentAnalyser
+    DigitalPaymentAnalyser,
+    LeakOSINT
 )
 
 
@@ -42,7 +43,8 @@ from .serializers import (
     MobileToAccountNumberSerializer,
     MobileToDLLookupSerializer,
     PanAllInOneSerializer,
-    DigitalPaymentAnalyserSerializer
+    DigitalPaymentAnalyserSerializer,
+    LeakOSINTSerializer
 )
 
 from .utils import (
@@ -59,7 +61,8 @@ from .utils import (
     fetch_mobile_to_dl_data,
     get_uan_dtls_without_otp,
     fetch_pan_all_in_one_data,
-    fetch_digital_payment_analyser_data
+    fetch_digital_payment_analyser_data,
+    fetch_leak_osint_data
 )
 
 @api_view(["POST"])
@@ -535,4 +538,33 @@ def digital_payment_analyser(request):
             return Response(create_response(False, "No digital payments found.", data=None), status=status.HTTP_200_OK)
     except Exception as e:
 
+        return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(["POST"])
+def leak_osint(request):
+    request_body = request.data.get("request_body")
+    realtime_data = request.data.get("realtimeData", False)
+    
+    if not request_body:
+        return Response(create_response(False, "request_body is required", None), status=status.HTTP_400_BAD_REQUEST)
+
+    if not realtime_data:
+        try:
+            report = LeakOSINT.objects.get(request_body=request_body)
+            serialized = LeakOSINTSerializer(report).data
+            return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
+
+        except LeakOSINT.DoesNotExist:
+            pass
+
+    try:
+        api_response = fetch_leak_osint_data(request_body=request_body)
+        LeakOSINT.objects.update_or_create(
+            request_body=request_body,
+            defaults={"result": api_response}
+        )
+        return Response(create_response(True, "Data fetched from external API", api_response), status=status.HTTP_200_OK)
+    
+    except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)

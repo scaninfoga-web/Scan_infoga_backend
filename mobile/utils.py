@@ -615,6 +615,7 @@ async def fetch_digital_payment_data_async(session, api_url, headers, payload, m
 
             
     except aiohttp.ClientResponseError as e:
+        raise Exception(f"API request failed")
         return {
             str(mobile_number) + upi_handle: {
                 'success': False,
@@ -687,3 +688,24 @@ def fetch_digital_payment_analyser_data(mobile_number):
     loop.close()
     
     return result
+
+def fetch_leak_osint_data(request_body):
+    """Fetch leak osint details for the mobile number"""
+    api_url = os.getenv('LEAK_OSINT_API_URL')
+    api_key = os.getenv('LEAK_OSINT_AUTH_KEY')
+    
+    payload = {
+        "token":api_key,
+        "request":request_body
+    }
+    
+    response = requests.post(api_url, json=payload)
+    response.raise_for_status()
+    
+    data = response.json()
+    if response.status_code==200:
+        return {
+           'success': True,
+            'data': data
+        }
+    raise Exception(response.json()['message'] or 'External API Error')
