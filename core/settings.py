@@ -57,7 +57,8 @@ EXTERNAL_APPS = [
     'hudsonrock',
     'user_activities',
     'mobile',
-    'payments'
+    'payments',
+    'credentials',
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS
