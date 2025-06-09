@@ -25,9 +25,7 @@ from .models import (
     UanWithoutOtp,
     PanAllInOne,
     DigitalPaymentAnalyser,
-    LeakOSINT,
-    HunterFind,
-    HunterVerify
+    LeakOSINT
 )
 
 
@@ -46,9 +44,7 @@ from .serializers import (
     MobileToDLLookupSerializer,
     PanAllInOneSerializer,
     DigitalPaymentAnalyserSerializer,
-    LeakOSINTSerializer,
-    HunterVerifySerializer,
-    HunterFindSerializer
+    LeakOSINTSerializer
 )
 
 from .utils import (
@@ -66,9 +62,7 @@ from .utils import (
     get_uan_dtls_without_otp,
     fetch_pan_all_in_one_data,
     fetch_digital_payment_analyser_data,
-    fetch_leak_osint_data,
-    fetch_hunter_find_data,
-    fetch_hunter_verify_data
+    fetch_leak_osint_data
 )
 
 @api_view(["POST"])
@@ -574,58 +568,3 @@ def leak_osint(request):
     
     except Exception as e:
         return Response(create_response(False, str(e), None), status=status.HTTP_404_NOT_FOUND)
-
-@api_view(["POST"])
-def hunter_verify(request):
-    email = request.data.get("email")
-    realtime_data = request.data.get("realtimeData", False)
-
-    if not email:
-        return Response(create_response(False, "email is required", None), status=status.HTTP_400_BAD_REQUEST)
-
-    if not realtime_data:
-        try:
-            report = HunterVerify.objects.get(email=email)
-            serialized = HunterVerifySerializer(report).data
-            return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-
-        except HunterVerify.DoesNotExist:
-            pass
-
-    try:
-        api_response = fetch_hunter_verify_data(email=email)
-        HunterVerify.objects.update_or_create(
-            email=email,
-            defaults={"result": api_response}
-        )
-        return Response(create_response(True, "Data fetched from external API", api_response), status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response(create_response(False, f"Unxpected Error: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-
-@api_view(["POST"])
-def hunter_find(request):
-    email = request.data.get("email")
-    realtime_data = request.data.get("realtimeData", False)
-
-    if not email:
-        return Response(create_response(False, "email is required", None), status=status.HTTP_400_BAD_REQUEST)
-
-    if not realtime_data:
-        try:
-            report = HunterFind.objects.get(email=email)
-            serialized = HunterFindSerializer(report).data
-            return Response(create_response(True, "Data fetched from database", serialized['result']), status=status.HTTP_200_OK)
-
-        except HunterFind.DoesNotExist:
-            pass
-
-    try:
-        api_response = fetch_hunter_find_data(email=email)
-        HunterFind.objects.update_or_create(
-            email=email,
-            defaults={"result": api_response}
-        )
-        return Response(create_response(True, "Data fetched from external API", api_response), status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response(create_response(False, f"Unxpected Error: {str(e)}", None), status=status.HTTP_404_NOT_FOUND)
-

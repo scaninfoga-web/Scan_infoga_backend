@@ -18,6 +18,4 @@ urlpatterns = [
     path("panallinone", views.pan_all_in_one, name="pan_all_in_one"),
     path("digitalpayment", views.digital_payment_analyser, name="digital_payment_analyser"),
     path("breachinfo", views.leak_osint, name="leakosint"),
-    path("hunterfind", views.hunter_find, name="hunterfind"),
-    path("hunterverify", views.hunter_verify, name="hunterverify"),
 ]
