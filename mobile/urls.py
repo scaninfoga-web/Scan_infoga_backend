@@ -17,5 +17,5 @@ urlpatterns = [
     path("mobiletodllookup", views.mobile_to_dl_lookup, name="mobile_to_dl_lookup"),
     path("panallinone", views.pan_all_in_one, name="pan_all_in_one"),
     path("digitalpayment", views.digital_payment_analyser, name="digital_payment_analyser"),
-    path("leakosint", views.leak_osint, name="leakosint"),
+    path("breachinfo", views.leak_osint, name="leakosint"),
 ]
