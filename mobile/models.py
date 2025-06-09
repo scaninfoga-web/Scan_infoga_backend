@@ -152,3 +152,24 @@ class LeakOSINT(models.Model):
 
     def __str__(self):
         return self.request_body
+
+
+class HunterFind(models.Model):
+    email = models.CharField(max_length=100, primary_key=True)
+    result = models.JSONField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.email
+
+class HunterVerify(models.Model):
+    email = models.CharField(max_length=100, primary_key=True)
+    result = models.JSONField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.email
