@@ -73,13 +73,12 @@ class DeveloperProfile(models.Model):
 
 class UserSession(models.Model):
     email = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    lastLogin = models.DateTimeField(auto_now=True)
-    sessionStartTime = models.DateTimeField(auto_now_add=True)
-    sessionEndTime = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     ipAddress = models.GenericIPAddressField(null=True, blank=True) 
     device = models.CharField(max_length=200, default='Unknown')
     browser = models.CharField(max_length=200, default='Unknown')
-    location = models.CharField(max_length=200, default='Unknown')
+    latitude = models.CharField(max_length=200, default='0')
+    longitude = models.CharField(max_length=200, default='0')
 
     def __str__(self):
         return f"{self.email} - {self.sessionStartTime}"

@@ -21,6 +21,8 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework.decorators import parser_classes
 from django.http import HttpResponse
+import json
+
 
 from .utils import fetch_map
 from payments.utils import create_wallet
@@ -64,6 +66,7 @@ def registerUser(request):
 
 @api_view(['POST'])
 def loginUser(request):
+    all_headers = dict(request.headers)
     email = request.data.get('email')
     password = request.data.get('password')
     otp = request.data.get('otp')
@@ -149,11 +152,38 @@ def loginUser(request):
     refresh = RefreshToken.for_user(user)
     token = str(refresh.access_token)
 
+    raw = request.headers.get('Clientinfo')
+    clientinfo = {}
+    if raw:
+        try:
+            clientinfo = json.loads(raw)
+        except json.JSONDecodeError:
+            return Response(
+                create_response(False, "Malformed Clientinfo header", None),
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+    UserSession.objects.create(
+        email     = user,
+        ipAddress = clientinfo.get('ip') or request.META.get('REMOTE_ADDR'),
+        device    = clientinfo.get('device', 'Unknown'),
+        browser   = clientinfo.get('browser', 'Unknown'),
+        latitude  = clientinfo.get('latitude', '0'),
+        longitude = clientinfo.get('longitude', '0'),
+    )
+
     user_data = {
         'email': user.email,
         'firstName': user.first_name,
         'lastName': user.last_name,
-        'userType': user.user_type
+        'userType': user.user_type,
+        'dateJoined': user.date_joined,
+        "ipAddress": clientinfo.get('ip') or request.META.get('REMOTE_ADDR'),
+        "device": clientinfo.get('device', 'Unknown'),
+        "browser": clientinfo.get('browser', 'Unknown'),
+        "latitude": clientinfo.get('latitude', '0'),
+        "longitude": clientinfo.get('longitude', '0'),
     }
 
     return Response(
@@ -412,3 +442,65 @@ def get_user_map(request):
             ),
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+def changePassword(request):
+    email = request.data.get('email')
+    password = request.data.get('oldPassword')
+    newPassword = request.data.get('newPassword')
+    otp = request.data.get("otp")
+    if not all([email, password, newPassword]):
+        return Response(
+            create_response(
+                status=False,
+                message="Please provide email, password and new password",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    hashedPassword = hashlib.sha256(password.encode()).hexdigest()
+    user = authenticate(email=email, password=hashedPassword)
+    if not user:
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid credentials",
+                data=None
+            ),
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
+    if not otp:
+        return Response(
+            create_response(
+                status=True,
+                message="Please provide OTP",
+                data={'require_otp': True}
+            ),
+            status=status.HTTP_200_OK
+        )
+    # Third step: Verify OTP and generate token
+    totp = pyotp.TOTP(user.otp_secret)
+    if not totp.verify(otp):
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid OTP",
+                data=None
+            ),
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    newPasswordHashed = hashlib.sha256(newPassword.encode()).hexdigest()
+    user.set_password(newPasswordHashed)
+    user.save()
+
+    return Response(
+        create_response(
+            status=True,
+            message="Password changed successfully",
+            data=None
+        ),
+        status=status.HTTP_200_OK
+    )
