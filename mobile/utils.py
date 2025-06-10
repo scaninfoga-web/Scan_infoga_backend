@@ -3,6 +3,7 @@ import os
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib3 import response
 from urllib3.poolmanager import key_fn_by_scheme
 from .transform import transform_api_response, prepare_client_response
 import asyncio
@@ -709,3 +710,44 @@ def fetch_leak_osint_data(request_body):
             'data': data
         }
     raise Exception(response.json()['message'] or 'External API Error')
+
+def fetch_hunter_verify_data(email):
+    """Fetch hunter verify details for the mobile number"""
+    api_url = os.getenv('HUNTER_EMAIL_VERIFY_API_URL')
+    api_key = os.getenv('HUNTER_AUTH_KEY')
+    
+    params = {
+        "email" : email,
+        "api_key" : api_key
+    }
+    
+    response = requests.get(api_url, params=params)
+    response.raise_for_status()
+    
+    if response.status_code==200:
+        return {
+           'success': True,
+            'data': response.json()
+        }
+    raise Exception(response.json()['message'] or 'External API Error')
+
+def fetch_hunter_find_data(email):
+    """Fetch hunter find details for the mobile number"""
+    api_url = os.getenv('HUNTER_FIND_API_URL')
+    api_key = os.getenv('HUNTER_AUTH_KEY')
+
+    params = {
+        "email" : email,
+        "api_key" : api_key
+    }
+
+    response = requests.get(api_url, params=params)
+    response.raise_for_status()
+
+    if response.status_code==200:
+        return {
+          'success': True,
+            'data': response.json()
+        }
+    raise Exception(response.json()['message'] or 'External API Error')
+
