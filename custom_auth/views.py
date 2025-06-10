@@ -394,7 +394,6 @@ def generate_qr_code(email, secret_key):
 @api_view(['POST'])
 @parser_classes([JSONParser, FormParser, MultiPartParser])
 def get_user_map(request):
-    # Get user's location
     user_location_lng = request.data.get('userLng')
     user_location_lat = request.data.get('userLat')
     address = request.data.get('address')
