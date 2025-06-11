@@ -9,7 +9,7 @@ class LeakEmailPasswords:
         self._aws_access_key_id = os.getenv('AWS_DYNAMODB_ACCESS_TOKEN')
         self._aws_secret_access_key = os.getenv('AWS_DYNAMODB_SECURITY_ACCESS_TOKEN')
         self._region_name = os.getenv('AWS_DYNAMODB_REGION_NAME')
-        self._table_name = os.getenv('AWS_DYNAMODB_TABLE_NAME')
+        self._table_name = os.getenv('AWS_DYNAMODB_LEAKED_TABLE_NAME')
         self._dynamodb = boto3.resource(
             'dynamodb',
             aws_access_key_id=self._aws_access_key_id,
