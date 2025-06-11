@@ -58,6 +58,7 @@ EXTERNAL_APPS = [
     'user_activities',
     'mobile',
     'payments',
+    'leak_data',
 ]
 
 INSTALLED_APPS += EXTERNAL_APPS
