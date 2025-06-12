@@ -193,3 +193,39 @@ def fetch_map(starting_point_lng, starting_point_lat, address):
         }
     else:
         raise Exception(f'API request failed with status code: {response.status_code}')
+    
+
+def fetch_location_map(lat, lng):
+    api_url = os.getenv('MAP_LOCATION_API_URL')
+    api_key = os.getenv('MAP_API_AUTH_KEY')
+    
+    magnification = 15
+
+    headers = {
+        'Content-Type': 'application/json',
+    }
+
+    params = {
+        'marker': f'{lng},{lat}|red|scale:1.1',
+        'api_key': api_key,
+    }
+    
+    api_url = f"{api_url}/{lng},{lat},{magnification}/800x600.png"
+    
+    response = requests.get(api_url, params=params, headers=headers)
+
+    if response.status_code == 200:
+        # Convert image bytes to base64 string
+        image_base64 = base64.b64encode(response.content).decode('utf-8')
+        
+        return {
+            'success': True,
+            'data': {
+                'content_type': response.headers.get('content-type', 'image/png'),
+                'image':image_base64,
+            }
+                
+        }
+    else:
+        raise Exception(f'API request failed with status code: {response.status_code}')
+        

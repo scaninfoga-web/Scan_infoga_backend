@@ -25,7 +25,7 @@ from django.http import HttpResponse
 import json
 
 
-from .utils import fetch_map
+from .utils import fetch_map, fetch_location_map
 from payments.utils import create_wallet
 
 @api_view(['POST'])
@@ -592,3 +592,42 @@ def changeEmail(request):
         ),
         status=status.HTTP_200_OK
     )
+
+@api_view(['POST'])
+@parser_classes([JSONParser, FormParser, MultiPartParser])
+def get_user_location_map(request):
+    lat = request.data.get('latitude')
+    lng = request.data.get('longitude')
+    
+    if not all([lat, lng]):
+        return Response(
+            create_response(
+                status=False,
+                message="Please provide user's location",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        api_response = fetch_location_map(
+            lat=lat,
+            lng=lng
+        )
+        return Response(
+            create_response(
+                status=api_response['success'],
+                message="Map fetched successfully",
+                data=api_response['data']
+            ),
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return Response(
+            create_response(
+                status=False,
+                message="Error fetching map",
+                data=str(e)
+            ),
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
