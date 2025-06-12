@@ -13,7 +13,7 @@ class GlobalExceptionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        self.log_user_activity(request)
+        # self.log_user_activity(request)
         response = self.get_response(request)
         return response
 

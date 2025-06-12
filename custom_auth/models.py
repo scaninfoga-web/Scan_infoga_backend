@@ -72,7 +72,7 @@ class DeveloperProfile(models.Model):
         return f"{self.first_name} {self.last_name} - {self.user.email}"
 
 class UserSession(models.Model):
-    email = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     ipAddress = models.GenericIPAddressField(null=True, blank=True) 
     device = models.CharField(max_length=200, default='Unknown')

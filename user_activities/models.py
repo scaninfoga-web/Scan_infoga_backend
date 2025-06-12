@@ -2,7 +2,7 @@ from django.db import models
 from custom_auth.models import CustomUser as User
 
 class UserActivity(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities', default = 0)
     email = models.EmailField()
     api_called = models.CharField(max_length=255)
     activity_time = models.DateTimeField(auto_now_add=True)

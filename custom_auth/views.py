@@ -11,6 +11,7 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 import hashlib
 from .models import UserSession, CustomUser
+# from .models import CustomUser
 from user_agents import parse
 from django.utils import timezone
 from core.utils import create_response
@@ -163,16 +164,6 @@ def loginUser(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
-    UserSession.objects.create(
-        email     = user,
-        ipAddress = clientinfo.get('ip') or request.META.get('REMOTE_ADDR'),
-        device    = clientinfo.get('device', 'Unknown'),
-        browser   = clientinfo.get('browser', 'Unknown'),
-        latitude  = clientinfo.get('latitude', '0'),
-        longitude = clientinfo.get('longitude', '0'),
-    )
-
     user_data = {
         'email': user.email,
         'firstName': user.first_name,
@@ -185,6 +176,15 @@ def loginUser(request):
         "latitude": clientinfo.get('latitude', '0'),
         "longitude": clientinfo.get('longitude', '0'),
     }
+
+    UserSession.objects.create(
+        user    = user,
+        ipAddress = clientinfo.get('ip') or request.META.get('REMOTE_ADDR'),
+        device    = clientinfo.get('device', 'Unknown'),
+        browser   = clientinfo.get('browser', 'Unknown'),
+        latitude  = clientinfo.get('latitude', '0'),
+        longitude = clientinfo.get('longitude', '0'),
+    )
 
     return Response(
         create_response(
@@ -273,7 +273,7 @@ def googleAuth(request):
         userAgent = parse(userAgentString)
         
         UserSession.objects.create(
-            email=user,
+            user=user,
             ipAddress=request.META.get('REMOTE_ADDR', ''),
             device=f"{userAgent.device.family} {userAgent.device.model}",
             browser=f"{userAgent.browser.family} {userAgent.browser.version_string}",
@@ -500,6 +500,95 @@ def changePassword(request):
             status=True,
             message="Password changed successfully",
             data=None
+        ),
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+def changeEmail(request):
+    current_email = request.data.get('email')
+    password = request.data.get('password')
+    new_email = request.data.get('newEmail')
+    otp = request.data.get("otp")
+
+    if not all([current_email, password, new_email]):
+        return Response(
+            create_response(
+                status=False,
+                message="Please provide current email, password, and new email",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    hashedPassword = hashlib.sha256(password.encode()).hexdigest()
+    user = authenticate(email=current_email, password=hashedPassword)
+
+    new_email_exists = CustomUser.objects.filter(email=new_email).exists()
+
+    if(new_email_exists):
+        return Response(
+            create_response(
+                status=False,
+                message="This email is already registered. Please use a different email.",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if(new_email == current_email):
+        return Response(
+            create_response(
+                status=False,
+                message="New email cannot be current email.",
+                data=None
+            ),
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not user:
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid credentials",
+                data=None
+            ),
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    if not otp:
+        return Response(
+            create_response(
+                status=True,
+                message="Please provide OTP",
+                data={'require_otp': True}
+            ),
+            status=status.HTTP_200_OK
+        )
+
+    totp = pyotp.TOTP(user.otp_secret)
+    if not totp.verify(otp):
+        return Response(
+            create_response(
+                status=False,
+                message="Invalid OTP",
+                data=None
+            ),
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    secret_key = pyotp.random_base32()
+    user.email = new_email
+    user.otp_secret = secret_key
+    user = user.save()
+    qr_code = generate_qr_code(user.email, secret_key)
+
+    return Response(
+        create_response(
+            status=True,
+            message="Email changed successfully",
+            data={'qr_code': qr_code}
         ),
         status=status.HTTP_200_OK
     )
