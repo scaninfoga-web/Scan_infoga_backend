@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 class DynamoDBItemSerializer(serializers.Serializer):
     class Meta:
-        extra_kwargs = {'mobno': {'required': True}}
+        extra_kwargs = {'mobile_number': {'required': True}}
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
